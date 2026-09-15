@@ -1,0 +1,1 @@
+std::span<u16> getMoves(const Board& board, u8 color, std::array<u16, 218>& maxMovesList, MoveTables& moves);
