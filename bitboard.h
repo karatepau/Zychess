@@ -32,6 +32,7 @@ struct Board{
     u64 pieces[12];
     u64 occupancies[3];
     u64 board[64];
+    u8 passantSq;
 };
 
 struct MoveTables {
