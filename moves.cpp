@@ -68,7 +68,7 @@ void pawnMoves(u64 pieces, u64 both, u64 enemies, u8 const color, u16*& ptr) {
     pawnMove(legalMoves, ptr, -16);
     legalMoves = (pieces << 7) & enemies;
     pawnMove(legalMoves, ptr, -9);
-    legalMoves = (pieces << -9) & enemies;
+    legalMoves = (pieces << 9) & enemies;
     pawnMove(legalMoves, ptr, -7);
   }
 
