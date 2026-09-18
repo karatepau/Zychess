@@ -28,11 +28,18 @@ enum Color {
     BOTH  = 2
 };
 
+struct Extras {
+    u8 passantSq;
+    u8 wKingRights;
+    u8 bKingRights;
+    u8 fiftyRule;
+};
+
 struct Board{
     u64 pieces[12];
     u64 occupancies[3];
     u64 board[64];
-    u8 passantSq;
+    Extras extras;
 };
 
 struct MoveTables {
