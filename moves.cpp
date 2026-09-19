@@ -1,19 +1,16 @@
 #include "bitboard.h"
-
+#include "moves.h"
 
 void attacks(u64 legalMoves, u64& mask) {
-  while (legalMoves) {
-    mask |= 1ULL << __builtin_ctzll(legalMoves);
-    legalMoves &= legalMoves-1;
-  }
+  mask |= 1ULL << __builtin_ctzll(legalMoves);
 }
 
 void knightAttacks(u64 pieces, u64 board, u64& mask) {
   while (pieces) {
     u8 origin = __builtin_ctzll(pieces);
     u64 legalMoves = nMsk[origin] & ~board;
-    attacks(legalMoves, mask);
-    pieces &= pieces-1;
+    mask |= legalMoves;
+    POPLSB(pieces);
   }
 }
 
@@ -22,8 +19,8 @@ void bishopAttacks(MoveTables& moveTables, u64 pieces, u64 friends, u64 both, u6
     u8 origin = __builtin_ctzll(pieces);
     u64 legalMoves = moveTables.bishop[origin][_pext_u64(both, bMsk[origin])];
     legalMoves &= ~friends;
-    attacks(legalMoves, mask);
-    pieces &= pieces-1;
+    mask |= legalMoves;
+    POPLSB(pieces);
   }
 }
 
@@ -32,37 +29,33 @@ void rookAttacks(MoveTables& moveTables, u64 pieces, u64 friends, u64 both, u64&
     u8 origin = __builtin_ctzll(pieces);
     u64 legalMoves = moveTables.rook[origin][_pext_u64(both, rMsk[origin])];
     legalMoves &= ~friends;
-    attacks(legalMoves, mask);
-    pieces &= pieces-1;
+    mask |= legalMoves;
+    POPLSB(pieces);
   }
 }
 
 void kingAttacks(u64 pieces, u64 board, u64& mask) {
-  while (pieces) {
-    u8 origin = __builtin_ctzll(pieces);
-    u64 legalMoves = kMsk[origin] & ~board;
-    attacks(legalMoves, mask);
-    pieces &= pieces-1;
-  }
+  u8 origin = __builtin_ctzll(pieces);
+  u64 legalMoves = kMsk[origin] & ~board;
+  mask |= legalMoves;
 }
 
 
 template<Color C>
-void pawnAttacks(u64 pieces, u64 both, u64 enemies, u64& mask) {
-  u64 empty = ~both;
+void pawnAttacks(u64 pieces, u64& mask) {
   u64 legalMoves;
   if constexpr (C == WHITE) {
     legalMoves = (pieces << 7);
-    attacks(legalMoves, mask);
+    mask |= legalMoves;
     legalMoves = (pieces << 9);
-    attacks(legalMoves, mask);
+    mask |= legalMoves;
   }
 
   else {
     legalMoves = (pieces >> 7);
-    attacks(legalMoves, mask);
+    mask |= legalMoves;
     legalMoves = (pieces >> 9);
-    attacks(legalMoves, mask);
+    mask |= legalMoves;
   }
 }
 
@@ -73,14 +66,15 @@ void getAttacks(const Board& board, u64& mask, MoveTables& moves) {
   bishopAttacks(moves, board.pieces[WB + offset], board.occupancies[C], board.occupancies[BOTH], mask);
   rookAttacks(moves, board.pieces[WR + offset], board.occupancies[C], board.occupancies[BOTH], mask);
   bishopAttacks(moves, board.pieces[WQ + offset], board.occupancies[C], board.occupancies[BOTH], mask);
+  rookAttacks(moves, board.pieces[WQ + offset], board.occupancies[C], board.occupancies[BOTH], mask);
   kingAttacks(board.pieces[WK + offset], board.occupancies[C], mask);
-  pawnAttacks<C>(board.pieces[WP + offset], board.occupancies[BOTH], board.occupancies[C ^ 1ULL], mask);
+  pawnAttacks<C>(board.pieces[WP + offset], mask);
 }
 
 void moves(u64 legalMoves, u8 origin, u16*& ptr) {
   while (legalMoves) {
     *ptr++ = (__builtin_ctzll(legalMoves) << 6) | origin;
-    legalMoves &= legalMoves-1;
+    POPLSB(legalMoves);
   }
 }
 void knightMoves(u64 pieces, u64 board, u16*& ptr) {
@@ -88,7 +82,7 @@ void knightMoves(u64 pieces, u64 board, u16*& ptr) {
     u8 origin = __builtin_ctzll(pieces);
     u64 legalMoves = nMsk[origin] & ~board;
     moves(legalMoves, origin, ptr);
-    pieces &= pieces-1;
+    POPLSB(pieces);
   }
 }
 
@@ -98,7 +92,7 @@ void bishopMoves(MoveTables& moveTables, u64 pieces, u64 friends, u64 both, u16*
     u64 legalMoves = moveTables.bishop[origin][_pext_u64(both, bMsk[origin])];
     legalMoves &= ~friends;
     moves(legalMoves, origin, ptr);
-    pieces &= pieces-1;
+    POPLSB(pieces);
   }
 }
 
@@ -108,13 +102,31 @@ void rookMoves(MoveTables& moveTables, u64 pieces, u64 friends, u64 both, u16*& 
     u64 legalMoves = moveTables.rook[origin][_pext_u64(both, rMsk[origin])];
     legalMoves &= ~friends;
     moves(legalMoves, origin, ptr);
-    pieces &= pieces-1;
+    POPLSB(pieces);
   }
 }
 
-void kingMoves(u64 pieces, u64 board, u64 legalMoves, u16*& ptr) {
+template<Color C>
+void kingMoves(u64 pieces, u64 friends, u64 both, u64 legalSquares, u8 castlingRights, u16*& ptr) {
   u8 origin = __builtin_ctzll(pieces);
-  legalMoves &= kMsk[origin] & ~board;
+  u64 legalMoves = kMsk[origin] & ~friends & legalSquares;
+  if constexpr (C == WHITE) {
+    if ((0x70u & legalSquares & ~both) == 0x70u && (castlingRights & WHITE_OO) == WHITE_OO) {
+      legalMoves |= 0x40;
+    }
+    if ((0x1c & legalSquares & ~both) == 0x1c && (0x02ULL & ~both) == 0x02ULL && (castlingRights & WHITE_OOO) == WHITE_OOO) {
+      legalMoves |= 0x4;
+    }
+  }
+
+  else {
+    if ((0x7000000000000000ULL & legalSquares & ~both) == 0x7000000000000000ULL && (castlingRights & BLACK_OO) == BLACK_OO) {
+      legalMoves |= 0x4000000000000000ULL;
+    }
+    if ((0x1c00000000000000ULL & legalSquares & ~both) == 0x1c00000000000000ULL && (0x200000000000002ULL & ~both) == 0x200000000000002ULL && (castlingRights & BLACK_OOO) == BLACK_OOO) {
+      legalMoves |= 0x400000000000000ULL;
+    }
+  }
   moves(legalMoves, origin, ptr);
 }
 
@@ -123,7 +135,7 @@ void pawnMove (u64& legalMoves, u16*& ptr, i8 destDiff) {
     u8 destination = __builtin_ctzll(legalMoves);
     u8 origin = destination + destDiff;
     *ptr++ = (origin << 6) | destination;
-    legalMoves &= legalMoves-1;
+    POPLSB(legalMoves);
   }
 }
 
@@ -173,12 +185,10 @@ std::span<u16> getMoves(const Board& board, std::array<u16, 218>& maxMovesList, 
   bishopMoves(moveTables, board.pieces[WB + offset], board.occupancies[C], board.occupancies[BOTH], ptr);
   rookMoves(moveTables, board.pieces[WR + offset], board.occupancies[C], board.occupancies[BOTH], ptr);
   bishopMoves(moveTables, board.pieces[WQ + offset], board.occupancies[C], board.occupancies[BOTH], ptr);
-  kingMoves(board.pieces[WK + offset], board.occupancies[C], ~checkMask, ptr);
+  kingMoves<C>(board.pieces[WK + offset], board.occupancies[C], board.occupancies[BOTH]^board.pieces[WK + offset], ~checkMask, board.extras.castlingRights, ptr);
   pawnMoves<C>(board.pieces[WP + offset], board.occupancies[BOTH], board.occupancies[enemy], ptr, u64 (board.extras.passantSq << 1ULL));
   return std::span<u16>(maxMovesList.data(), ptr);
 }
 
-template void getAttacks<WHITE>(const Board& board, u64& mask, MoveTables& moveTables);
-template void getAttacks<BLACK>(const Board& board, u64& mask, MoveTables& moveTables);
 template std::span<u16> getMoves<WHITE>(const Board& board, std::array<u16, 218>& maxMovesList, MoveTables& moveTables);
 template std::span<u16> getMoves<BLACK>(const Board& board, std::array<u16, 218>& maxMovesList, MoveTables& moveTables);

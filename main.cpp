@@ -11,7 +11,7 @@ int main (int argc, char *argv[]) {
   Board board{};
   board.pieces[WK] = 0x8000000;
   board.occupancies[WHITE] = board.pieces[WK]; 
-  board.pieces[BQ] = 0x220000000000;
+  board.pieces[BQ] = 0x140000000000;
   board.occupancies[BOTH] = board.occupancies[WHITE] | board.occupancies[BLACK];
   std::span<u16> movesList = getMoves<WHITE>(board, maxMovesList, moveTables);
 
