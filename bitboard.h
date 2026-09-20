@@ -9,6 +9,8 @@
 #include <immintrin.h>
 #include <vector>
 #include <bit>
+#include <utility>
+#include <algorithm>
 
 using i8  = std::int8_t;
 using u8  = std::uint8_t;
@@ -41,14 +43,15 @@ enum CastlingRights : u8
 struct Extras {
   u8 passantSq;
   u8 castlingRights;
-  u8 capturedPiece;
+  i8 capturedPiece;
 };
 
 struct Board{
   u64 pieces[12];
   u64 occupancies[3];
-  u64 board[64];
-  Extras extras;
+  i8 board[64];
+  u16 turn;
+  std::array<Extras, 512> extras;
 };
 
 struct MoveTables {

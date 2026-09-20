@@ -105,7 +105,7 @@ consteval std::array<u64, 64> gnKMsk () {
 }
 
 u64 raycasting (u64 pos, u64 occ, u64 mask, int shift) {
-  u64 moves = pos;
+  u64 moves = 0;
   while (!(pos & mask) && !(pos & occ)) {
     pos = shift >= 0 ? pos << shift : pos >> -shift;
     if (pos == 0) break;
@@ -117,8 +117,8 @@ u64 raycasting (u64 pos, u64 occ, u64 mask, int shift) {
 u64 bRaycasting (u64 pos, u64 occ) {
   u64 legalMoves = raycasting(pos, occ, 0xff80808080808080, 9);
   legalMoves |= raycasting(pos, occ, 0xff01010101010101, 7);
-  legalMoves |= raycasting(pos, occ, 0x1010101010101ff, -7);
-  legalMoves |= raycasting(pos, occ, 0x80808080808080ff, -9);
+  legalMoves |= raycasting(pos, occ, 0x1010101010101ff, -9);
+  legalMoves |= raycasting(pos, occ, 0x80808080808080ff, -7);
   return legalMoves;
 }
 
@@ -142,8 +142,8 @@ MoveTables gnMoves () {
     u64 size = 1ULL << std::popcount(bMsk[i]);
     moves.bishop[i].resize(size);
     do {
-      occupancy = (occupancy - bMsk[i]) & bMsk[i];
       moves.bishop[i][_pext_u64(occupancy, bMsk[i])] = bRaycasting(1ULL << i, occupancy);
+      occupancy = (occupancy - bMsk[i]) & bMsk[i];
     } while (occupancy > 0);
   }
   occupancy = 0;
@@ -151,8 +151,8 @@ MoveTables gnMoves () {
     u64 size = 1ULL << std::popcount(rMsk[i]);
     moves.rook[i].resize(size);
     do {
-      occupancy = (occupancy - rMsk[i]) & rMsk[i];
       moves.rook[i][_pext_u64(occupancy, rMsk[i])] = rRaycasting(1ULL << i, occupancy);
+      occupancy = (occupancy - rMsk[i]) & rMsk[i];
     } while (occupancy > 0);
   }
   return moves;
