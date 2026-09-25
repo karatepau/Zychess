@@ -130,7 +130,7 @@ void kingMoves(u64 pieces, u64 friends, u64 both, u64 legalSquares, u8 castlingR
       legalMoves |= 0x400000000000000ULL;
     }
   }
-  kingMove(legalMoves, origin, 6 + C, ptr);
+  kingMove(legalMoves, origin, 6, ptr);
 }
 
 void pawnMove (u64& legalMoves, u8 flag, u16*& ptr, i8 destDiff) {
@@ -215,8 +215,6 @@ void updateBoard(Board& board, u8 piece, u8 destination, u64 oriMask, u64 destMa
   board.occupancies[C] ^= oriMask | destMask;
   board.occupancies[BOTH] ^= oriMask;
   board.occupancies[BOTH] |= destMask;
-  board.extras[board.turn + 1] = board.extras[board.turn];
-  board.turn++;
   board.extras[board.turn].passantSq = passantSq;
   board.extras[board.turn].castlingRights = castlingRights;
 }
@@ -235,6 +233,9 @@ static constexpr u8 castleKeep(int sq) {
  
 template<Color C>
 void makeMove(Board& board, u16 movement) {
+  board.extras[board.turn+1] = board.extras[board.turn];
+  board.turn++;
+  board.extras[board.turn].movement = movement;
   constexpr Color E = static_cast<Color>(C ^ 1);
   u8 origin = (movement >> 6) & 0x3f;
   u8 destination = movement & 0x3f;
@@ -268,10 +269,16 @@ void makeMove(Board& board, u16 movement) {
   else if (flag == 5) passant = (origin + destination) / 2;
   updateBoard<C>(board, placed, destination, oriMask, destMask, passant, rights);
  
-  if (flag == 6 || flag == 7) {
+  if (flag == 6+C) {
     u8 from, to;
-    if (destination == origin + 2)      { from = origin + 3; to = origin + 1; }
-    else if (destination + 2 == origin) { from = origin - 4; to = origin - 1; }
+    if (destination == origin + 2) {
+      from = origin + 3;
+      to = origin + 1;
+    }
+    else if (destination + 2 == origin) {
+      from = origin - 4;
+      to = origin - 1;
+    }
     else return;
     u64 rm = (1ULL << from) | (1ULL << to);
     board.board[from] = -1;
@@ -282,10 +289,88 @@ void makeMove(Board& board, u16 movement) {
   }
 }
 
+template<Color C>
+void unmakeMove (Board& board) {
+  constexpr u8 offset = C * 6;
+  constexpr Color E = static_cast<Color>(C ^ 1);
+  constexpr u8 eOffset = E * 6;
+  u8 origin = (board.extras[board.turn].movement >> 6) & 0x3f;
+  u8 destination = board.extras[board.turn].movement & 0x3f;
+  u8 flag = board.extras[board.turn].movement >> 12;
+  u8 piece = board.board[origin];
+  u64 oriMask = 1ULL << origin;
+  u64 destMask = 1ULL << destination;
+
+  if (flag == 9) {
+    u8 capSq = C == WHITE ? destination - 8 : destination + 8;
+    u64 c = 1ULL << capSq;
+    board.board[origin] = offset;
+    board.board[capSq] = eOffset;
+    board.board[destination] = -1;
+    board.pieces[eOffset] ^= c;
+    board.pieces[offset] ^= oriMask | destMask;
+    board.occupancies[C] ^= oriMask | destMask;
+    board.occupancies[E] ^= c;
+    board.occupancies[BOTH] ^= oriMask | destMask | c;
+  }
+  else {
+    if (board.extras[board.turn].capturedPiece != -1) {
+      board.board[origin] = board.board[destination];
+      board.board[destination] = board.extras[board.turn].capturedPiece;
+      board.pieces[board.extras[board.turn].capturedPiece] ^= destMask;
+      board.occupancies[E] ^= destMask;
+      board.occupancies[C] ^= oriMask | destMask;
+      board.pieces[board.board[origin]] ^= oriMask | destMask;
+      board.occupancies[BOTH] ^= oriMask;
+    }
+    else {
+      if (flag == 6) {
+        if (destination == 2) {
+          board.pieces[WR+offset] ^= 0x9;
+          board.occupancies[C] ^= 0x9;
+          board.occupancies[BOTH] ^= 0x9;
+          board.board[0] = WR+offset;
+          board.board[3] = -1;
+        }
+        else if (destination == 7) {
+          board.pieces[WR+offset] ^= 0xa0;
+          board.occupancies[C] ^= 0xa0;
+          board.occupancies[BOTH] ^= 0xa0;
+          board.board[7] = WR+offset;
+          board.board[5] = -1;
+        }
+        else if (destination == 58) {
+          board.pieces[WR+offset] ^= 0x900000000000000;
+          board.occupancies[C] ^= 0x900000000000000;
+          board.occupancies[BOTH] ^= 0x900000000000000;
+          board.board[56] = WR+offset;
+          board.board[59] = -1;
+        }
+        else if (destination == 62) {
+          board.pieces[WR+offset] ^= 0xa000000000000000;
+          board.occupancies[C] ^= 0xa000000000000000;
+          board.occupancies[BOTH] ^= 0xa000000000000000;
+          board.board[63] = WR+offset;
+          board.board[61] = -1;
+        }
+      } 
+      board.board[origin] = board.board[destination];
+      board.board[destination] = -1;
+      board.occupancies[C] ^= oriMask | destMask;
+      board.pieces[board.board[origin]] ^= oriMask | destMask;
+      board.occupancies[BOTH] ^= oriMask | destMask;
+    }
+  }
+
+  board.turn--;
+}
+
 
 template std::span<u16> getMoves<WHITE>(const Board& board, std::array<u16, 218>& maxMovesList, const MoveTables& moveTables);
 template std::span<u16> getMoves<BLACK>(const Board& board, std::array<u16, 218>& maxMovesList, const MoveTables& moveTables);
 template u64 isCheck<WHITE>(const Board&, const MoveTables&);
 template u64 isCheck<BLACK>(const Board&, const MoveTables&);
-template void makeMove<WHITE>(Board&, u16 movement);
-template void makeMove<BLACK>(Board&, u16 movement);
+template void makeMove<WHITE>(Board& board, u16 movement);
+template void makeMove<BLACK>(Board& board, u16 movement);
+template void unmakeMove<WHITE>(Board& board);
+template void unmakeMove<BLACK>(Board& board);

@@ -8,3 +8,5 @@ template<Color C>
 u64 isCheck(const Board& board, const MoveTables& moveTables);
 template<Color C>
 void makeMove(Board& board, u16 movement);
+template<Color C>
+void unmakeMove(Board& board);

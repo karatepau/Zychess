@@ -41,6 +41,7 @@ enum CastlingRights : u8
 };
 
 struct Extras {
+  u16 movement;
   u8 passantSq;
   u8 castlingRights;
   i8 capturedPiece;
@@ -51,7 +52,7 @@ struct Board{
   u64 occupancies[3];
   i8 board[64];
   u16 turn;
-  std::array<Extras, 512> extras;
+  std::array<Extras, 2048> extras;
 };
 
 struct MoveTables {
