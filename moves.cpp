@@ -269,7 +269,7 @@ void makeMove(Board& board, u16 movement) {
   else if (flag == 5) passant = (origin + destination) / 2;
   updateBoard<C>(board, placed, destination, oriMask, destMask, passant, rights);
  
-  if (flag == 6+C) {
+  if (flag == 6) {
     u8 from, to;
     if (destination == origin + 2) {
       from = origin + 3;
@@ -300,6 +300,7 @@ void unmakeMove (Board& board) {
   u8 piece = board.board[origin];
   u64 oriMask = 1ULL << origin;
   u64 destMask = 1ULL << destination;
+  u64 mask = oriMask | destMask;
 
   if (flag == 9) {
     u8 capSq = C == WHITE ? destination - 8 : destination + 8;
@@ -308,60 +309,81 @@ void unmakeMove (Board& board) {
     board.board[capSq] = eOffset;
     board.board[destination] = -1;
     board.pieces[eOffset] ^= c;
-    board.pieces[offset] ^= oriMask | destMask;
-    board.occupancies[C] ^= oriMask | destMask;
+    board.pieces[offset] ^= mask;
+    board.occupancies[C] ^= mask;
     board.occupancies[E] ^= c;
-    board.occupancies[BOTH] ^= oriMask | destMask | c;
+    board.occupancies[BOTH] ^= mask | c;
   }
   else {
     if (board.extras[board.turn].capturedPiece != -1) {
+      if (flag > 0 && flag < 5) {
+        board.board[origin] = offset;
+        board.board[destination] = board.extras[board.turn].capturedPiece;
+        board.pieces[board.extras[board.turn].capturedPiece] ^= destMask;
+        board.occupancies[E] ^= destMask;
+        board.occupancies[C] ^= mask;
+        board.pieces[offset] ^= oriMask;
+        board.pieces[flag+offset] ^= destMask;
+        board.occupancies[BOTH] ^= oriMask;
+        board.turn--;
+        return;
+      }
       board.board[origin] = board.board[destination];
       board.board[destination] = board.extras[board.turn].capturedPiece;
       board.pieces[board.extras[board.turn].capturedPiece] ^= destMask;
       board.occupancies[E] ^= destMask;
-      board.occupancies[C] ^= oriMask | destMask;
-      board.pieces[board.board[origin]] ^= oriMask | destMask;
+      board.occupancies[C] ^= mask;
+      board.pieces[board.board[origin]] ^= mask;
       board.occupancies[BOTH] ^= oriMask;
     }
     else {
       if (flag == 6) {
-        if (destination == 2) {
+        if (destination == 2 && origin == 4) {
           board.pieces[WR+offset] ^= 0x9;
           board.occupancies[C] ^= 0x9;
           board.occupancies[BOTH] ^= 0x9;
           board.board[0] = WR+offset;
           board.board[3] = -1;
         }
-        else if (destination == 7) {
+        else if (destination == 6 && origin == 4) {
           board.pieces[WR+offset] ^= 0xa0;
           board.occupancies[C] ^= 0xa0;
           board.occupancies[BOTH] ^= 0xa0;
           board.board[7] = WR+offset;
           board.board[5] = -1;
         }
-        else if (destination == 58) {
+        else if (destination == 58 && origin == 60) {
           board.pieces[WR+offset] ^= 0x900000000000000;
           board.occupancies[C] ^= 0x900000000000000;
           board.occupancies[BOTH] ^= 0x900000000000000;
           board.board[56] = WR+offset;
           board.board[59] = -1;
         }
-        else if (destination == 62) {
+        else if (destination == 62 && origin == 60) {
           board.pieces[WR+offset] ^= 0xa000000000000000;
           board.occupancies[C] ^= 0xa000000000000000;
           board.occupancies[BOTH] ^= 0xa000000000000000;
           board.board[63] = WR+offset;
           board.board[61] = -1;
         }
-      } 
+      }
+      else if (flag > 0 && flag < 5) {
+        board.board[origin] = offset;
+        board.board[destination] = -1;
+        board.occupancies[C] ^= mask;
+        board.pieces[offset] ^= oriMask;
+        board.pieces[flag+offset] ^= destMask;
+        board.occupancies[BOTH] ^= mask;
+        board.turn--;
+        return;
+      }
       board.board[origin] = board.board[destination];
       board.board[destination] = -1;
-      board.occupancies[C] ^= oriMask | destMask;
-      board.pieces[board.board[origin]] ^= oriMask | destMask;
-      board.occupancies[BOTH] ^= oriMask | destMask;
+      board.occupancies[C] ^= mask;
+      board.pieces[board.board[origin]] ^= mask;
+      board.occupancies[BOTH] ^= mask;
     }
   }
-
   board.turn--;
 }
 
