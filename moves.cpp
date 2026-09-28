@@ -54,16 +54,18 @@ void pawnAttacks(u64 pieces, u64& mask) {
 }
 
 template<Color C>
-void getAttacks(const Board& board, u64& mask, const MoveTables& moves) {
-  constexpr int offset = C * 6;
-  u64 occ = board.occupancies[BOTH] & ~board.pieces[WK + (C ^ 1) * 6];
-  knightAttacks(board.pieces[WN + offset], mask);
-  bishopAttacks(moves, board.pieces[WB + offset], occ, mask);
-  rookAttacks(moves, board.pieces[WR + offset], occ, mask);
-  bishopAttacks(moves, board.pieces[WQ + offset], occ, mask);
-  rookAttacks(moves, board.pieces[WQ + offset], occ, mask);
-  kingAttacks(board.pieces[WK + offset], mask);
-  pawnAttacks<C>(board.pieces[WP + offset], mask);
+u64 Board::getAttacks(const MoveTables& t) const {
+  u64 mask = 0;
+  constexpr i32 offset = C * 6;
+  u64 occ = occupancies_[BOTH] & ~pieces_[WK + (C ^ 1) * 6];
+  knightAttacks(pieces_[WN + offset], mask);
+  bishopAttacks(t, pieces_[WB + offset], occ, mask);
+  rookAttacks(t, pieces_[WR + offset], occ, mask);
+  bishopAttacks(t, pieces_[WQ + offset], occ, mask);
+  rookAttacks(t, pieces_[WQ + offset], occ, mask);
+  kingAttacks(pieces_[WK + offset], mask);
+  pawnAttacks<C>(pieces_[WP + offset], mask);
+  return mask;
 }
 
 void moves(u64 legalMoves, u8 origin, u16*& ptr) {
@@ -185,38 +187,35 @@ void pawnMoves(u64 pieces, u64 both, u64 enemies, u16*& ptr, u64 passantSq) {
 }
 
 template<Color C>
-std::span<u16> getMoves(const Board& board, std::array<u16, 218>& maxMovesList, const MoveTables& moveTables) {
+std::span<u16> Board::getMoves(std::array<u16, 218>& maxMovesList, const MoveTables& t) const {
   u16* ptr = maxMovesList.data();
   constexpr u8 offset = C * 6;
-  constexpr Color enemy = static_cast<Color>(C ^ 1);
-  u64 checkMask = 0;
-  getAttacks<enemy>(board, checkMask, moveTables);
-  knightMoves(board.pieces[WN + offset], board.occupancies[C], ptr);
-  bishopMoves(moveTables, board.pieces[WB + offset], board.occupancies[C], board.occupancies[BOTH], ptr);
-  rookMoves(moveTables, board.pieces[WR + offset], board.occupancies[C], board.occupancies[BOTH], ptr);
-  bishopMoves(moveTables, board.pieces[WQ + offset], board.occupancies[C], board.occupancies[BOTH], ptr);
-  rookMoves(moveTables, board.pieces[WQ + offset], board.occupancies[C], board.occupancies[BOTH], ptr);
-  kingMoves<C>(board.pieces[WK + offset], board.occupancies[C], board.occupancies[BOTH]^board.pieces[WK + offset], ~checkMask, board.extras[board.turn].castlingRights, ptr);
-  pawnMoves<C>(board.pieces[WP + offset], board.occupancies[BOTH], board.occupancies[enemy], ptr, 1ULL << board.extras[board.turn].passantSq);
+  constexpr Color enemy = C ^ 1;
+  u64 checkMask = getAttacks<enemy>(t);
+  knightMoves(pieces_[WN + offset], occupancies_[C], ptr);
+  bishopMoves(t, pieces_[WB + offset], occupancies_[C], occupancies_[BOTH], ptr);
+  rookMoves(t, pieces_[WR + offset], occupancies_[C], occupancies_[BOTH], ptr);
+  bishopMoves(t, pieces_[WQ + offset], occupancies_[C], occupancies_[BOTH], ptr);
+  rookMoves(t, pieces_[WQ + offset], occupancies_[C], occupancies_[BOTH], ptr);
+  kingMoves<C>(pieces_[WK + offset], occupancies_[C], occupancies_[BOTH]^pieces_[WK + offset], ~checkMask, extras_[turn_].castlingRights, ptr);
+  pawnMoves<C>(pieces_[WP + offset], occupancies_[BOTH], occupancies_[enemy], ptr, 1ULL << extras_[turn_].passantSq);
   return std::span<u16>(maxMovesList.data(), ptr);
 }
 
 template<Color C>
-u64 isCheck(const Board& board, const MoveTables& moveTables) {
-  u64 checkMask = 0;
-  getAttacks<static_cast<Color>(C ^ 1)>(board, checkMask, moveTables);
-  return checkMask & board.pieces[WK + C*6];
+u64 Board::isCheck(const MoveTables& t) const {
+  return getAttacks<C ^ 1>(t) & pieces_[WK + C * 6];
 }
 
 template<Color C>
-void updateBoard(Board& board, u8 piece, u8 destination, u64 oriMask, u64 destMask, u8 passantSq, u8 castlingRights) {
-  board.board[destination] = piece;
-  board.pieces[piece] |= destMask;
-  board.occupancies[C] ^= oriMask | destMask;
-  board.occupancies[BOTH] ^= oriMask;
-  board.occupancies[BOTH] |= destMask;
-  board.extras[board.turn].passantSq = passantSq;
-  board.extras[board.turn].castlingRights = castlingRights;
+void Board::updateBoard(u8 piece, u8 destination, u64 oriMask, u64 destMask, u8 passantSq, u8 castlingRights) {
+  squares_[destination] = piece;
+  pieces_[piece] |= destMask;
+  occupancies_[C] ^= oriMask | destMask;
+  occupancies_[BOTH] ^= oriMask;
+  occupancies_[BOTH] |= destMask;
+  extras_[turn_].passantSq = passantSq;
+  extras_[turn_].castlingRights = castlingRights;
 }
 
 static constexpr u8 castleKeep(int sq) {
@@ -232,42 +231,42 @@ static constexpr u8 castleKeep(int sq) {
 }
  
 template<Color C>
-void makeMove(Board& board, u16 movement) {
-  board.extras[board.turn+1] = board.extras[board.turn];
-  board.turn++;
-  board.extras[board.turn].movement = movement;
+void Board::makeMove(u16 movement) {
+  extras_[turn_+1] = extras_[turn_];
+  turn_++;
+  extras_[turn_].movement = movement;
   constexpr Color E = static_cast<Color>(C ^ 1);
   u8 origin = (movement >> 6) & 0x3f;
   u8 destination = movement & 0x3f;
   u8 flag = movement >> 12;
-  u8 piece = board.board[origin];
+  u8 piece = squares_[origin];
   u64 oriMask = 1ULL << origin;
   u64 destMask = 1ULL << destination;
-  i8 captured = board.board[destination];
-  u8 rights = board.extras[board.turn].castlingRights & castleKeep(origin) & castleKeep(destination);
+  i8 captured = squares_[destination];
+  u8 rights = extras_[turn_].castlingRights & castleKeep(origin) & castleKeep(destination);
  
   if (flag == 9) {
     u8 capSq = C == WHITE ? destination - 8 : destination + 8;
     u64 c = 1ULL << capSq;
-    captured = board.board[capSq];
-    board.board[capSq] = -1;
-    board.pieces[captured] ^= c;
-    board.occupancies[E] ^= c;
-    board.occupancies[BOTH] ^= c;
+    captured = squares_[capSq];
+    squares_[capSq] = -1;
+    pieces_[captured] ^= c;
+    occupancies_[E] ^= c;
+    occupancies_[BOTH] ^= c;
   }
   else if (captured != -1) {
-    board.pieces[captured] ^= destMask;
-    board.occupancies[E] ^= destMask;
+    pieces_[captured] ^= destMask;
+    occupancies_[E] ^= destMask;
   }
-  board.extras[board.turn].capturedPiece = captured;
-  board.board[origin] = -1;
-  board.pieces[piece] ^= oriMask;
+  extras_[turn_].capturedPiece = captured;
+  squares_[origin] = -1;
+  pieces_[piece] ^= oriMask;
  
   u8 placed = piece;
   u8 passant = 0;
   if (flag >= 1 && flag <= 4) placed = flag + C * 6;
   else if (flag == 5) passant = (origin + destination) / 2;
-  updateBoard<C>(board, placed, destination, oriMask, destMask, passant, rights);
+  updateBoard<C>(placed, destination, oriMask, destMask, passant, rights);
  
   if (flag == 6) {
     u8 from, to;
@@ -281,23 +280,22 @@ void makeMove(Board& board, u16 movement) {
     }
     else return;
     u64 rm = (1ULL << from) | (1ULL << to);
-    board.board[from] = -1;
-    board.board[to] = WR + C * 6;
-    board.pieces[WR + C * 6] ^= rm;
-    board.occupancies[C] ^= rm;
-    board.occupancies[BOTH] ^= rm;
+    squares_[from] = -1;
+    squares_[to] = WR + C * 6;
+    pieces_[WR + C * 6] ^= rm;
+    occupancies_[C] ^= rm;
+    occupancies_[BOTH] ^= rm;
   }
 }
 
 template<Color C>
-void unmakeMove (Board& board) {
+void Board::unmakeMove () {
   constexpr u8 offset = C * 6;
   constexpr Color E = static_cast<Color>(C ^ 1);
   constexpr u8 eOffset = E * 6;
-  u8 origin = (board.extras[board.turn].movement >> 6) & 0x3f;
-  u8 destination = board.extras[board.turn].movement & 0x3f;
-  u8 flag = board.extras[board.turn].movement >> 12;
-  u8 piece = board.board[origin];
+  u8 origin = (extras_[turn_].movement >> 6) & 0x3f;
+  u8 destination = extras_[turn_].movement & 0x3f;
+  u8 flag = extras_[turn_].movement >> 12;
   u64 oriMask = 1ULL << origin;
   u64 destMask = 1ULL << destination;
   u64 mask = oriMask | destMask;
@@ -305,94 +303,94 @@ void unmakeMove (Board& board) {
   if (flag == 9) {
     u8 capSq = C == WHITE ? destination - 8 : destination + 8;
     u64 c = 1ULL << capSq;
-    board.board[origin] = offset;
-    board.board[capSq] = eOffset;
-    board.board[destination] = -1;
-    board.pieces[eOffset] ^= c;
-    board.pieces[offset] ^= mask;
-    board.occupancies[C] ^= mask;
-    board.occupancies[E] ^= c;
-    board.occupancies[BOTH] ^= mask | c;
+    squares_[origin] = offset;
+    squares_[capSq] = eOffset;
+    squares_[destination] = -1;
+    pieces_[eOffset] ^= c;
+    pieces_[offset] ^= mask;
+    occupancies_[C] ^= mask;
+    occupancies_[E] ^= c;
+    occupancies_[BOTH] ^= mask | c;
   }
   else {
-    if (board.extras[board.turn].capturedPiece != -1) {
+    if (extras_[turn_].capturedPiece != -1) {
       if (flag > 0 && flag < 5) {
-        board.board[origin] = offset;
-        board.board[destination] = board.extras[board.turn].capturedPiece;
-        board.pieces[board.extras[board.turn].capturedPiece] ^= destMask;
-        board.occupancies[E] ^= destMask;
-        board.occupancies[C] ^= mask;
-        board.pieces[offset] ^= oriMask;
-        board.pieces[flag+offset] ^= destMask;
-        board.occupancies[BOTH] ^= oriMask;
-        board.turn--;
+        squares_[origin] = offset;
+        squares_[destination] = extras_[turn_].capturedPiece;
+        pieces_[extras_[turn_].capturedPiece] ^= destMask;
+        occupancies_[E] ^= destMask;
+        occupancies_[C] ^= mask;
+        pieces_[offset] ^= oriMask;
+        pieces_[flag+offset] ^= destMask;
+        occupancies_[BOTH] ^= oriMask;
+        turn_--;
         return;
       }
-      board.board[origin] = board.board[destination];
-      board.board[destination] = board.extras[board.turn].capturedPiece;
-      board.pieces[board.extras[board.turn].capturedPiece] ^= destMask;
-      board.occupancies[E] ^= destMask;
-      board.occupancies[C] ^= mask;
-      board.pieces[board.board[origin]] ^= mask;
-      board.occupancies[BOTH] ^= oriMask;
+      squares_[origin] = squares_[destination];
+      squares_[destination] = extras_[turn_].capturedPiece;
+      pieces_[extras_[turn_].capturedPiece] ^= destMask;
+      occupancies_[E] ^= destMask;
+      occupancies_[C] ^= mask;
+      pieces_[squares_[origin]] ^= mask;
+      occupancies_[BOTH] ^= oriMask;
     }
     else {
       if (flag == 6) {
         if (destination == 2 && origin == 4) {
-          board.pieces[WR+offset] ^= 0x9;
-          board.occupancies[C] ^= 0x9;
-          board.occupancies[BOTH] ^= 0x9;
-          board.board[0] = WR+offset;
-          board.board[3] = -1;
+          pieces_[WR+offset] ^= 0x9;
+          occupancies_[C] ^= 0x9;
+          occupancies_[BOTH] ^= 0x9;
+          squares_[0] = WR+offset;
+          squares_[3] = -1;
         }
         else if (destination == 6 && origin == 4) {
-          board.pieces[WR+offset] ^= 0xa0;
-          board.occupancies[C] ^= 0xa0;
-          board.occupancies[BOTH] ^= 0xa0;
-          board.board[7] = WR+offset;
-          board.board[5] = -1;
+          pieces_[WR+offset] ^= 0xa0;
+          occupancies_[C] ^= 0xa0;
+          occupancies_[BOTH] ^= 0xa0;
+          squares_[7] = WR+offset;
+          squares_[5] = -1;
         }
         else if (destination == 58 && origin == 60) {
-          board.pieces[WR+offset] ^= 0x900000000000000;
-          board.occupancies[C] ^= 0x900000000000000;
-          board.occupancies[BOTH] ^= 0x900000000000000;
-          board.board[56] = WR+offset;
-          board.board[59] = -1;
+          pieces_[WR+offset] ^= 0x900000000000000;
+          occupancies_[C] ^= 0x900000000000000;
+          occupancies_[BOTH] ^= 0x900000000000000;
+          squares_[56] = WR+offset;
+          squares_[59] = -1;
         }
         else if (destination == 62 && origin == 60) {
-          board.pieces[WR+offset] ^= 0xa000000000000000;
-          board.occupancies[C] ^= 0xa000000000000000;
-          board.occupancies[BOTH] ^= 0xa000000000000000;
-          board.board[63] = WR+offset;
-          board.board[61] = -1;
+          pieces_[WR+offset] ^= 0xa000000000000000;
+          occupancies_[C] ^= 0xa000000000000000;
+          occupancies_[BOTH] ^= 0xa000000000000000;
+          squares_[63] = WR+offset;
+          squares_[61] = -1;
         }
       }
       else if (flag > 0 && flag < 5) {
-        board.board[origin] = offset;
-        board.board[destination] = -1;
-        board.occupancies[C] ^= mask;
-        board.pieces[offset] ^= oriMask;
-        board.pieces[flag+offset] ^= destMask;
-        board.occupancies[BOTH] ^= mask;
-        board.turn--;
+        squares_[origin] = offset;
+        squares_[destination] = -1;
+        occupancies_[C] ^= mask;
+        pieces_[offset] ^= oriMask;
+        pieces_[flag+offset] ^= destMask;
+        occupancies_[BOTH] ^= mask;
+        turn_--;
         return;
       }
-      board.board[origin] = board.board[destination];
-      board.board[destination] = -1;
-      board.occupancies[C] ^= mask;
-      board.pieces[board.board[origin]] ^= mask;
-      board.occupancies[BOTH] ^= mask;
+      squares_[origin] = squares_[destination];
+      squares_[destination] = -1;
+      occupancies_[C] ^= mask;
+      pieces_[squares_[origin]] ^= mask;
+      occupancies_[BOTH] ^= mask;
     }
   }
-  board.turn--;
+  turn_--;
 }
 
 
-template std::span<u16> getMoves<WHITE>(const Board& board, std::array<u16, 218>& maxMovesList, const MoveTables& moveTables);
-template std::span<u16> getMoves<BLACK>(const Board& board, std::array<u16, 218>& maxMovesList, const MoveTables& moveTables);
-template u64 isCheck<WHITE>(const Board&, const MoveTables&);
-template u64 isCheck<BLACK>(const Board&, const MoveTables&);
-template void makeMove<WHITE>(Board& board, u16 movement);
-template void makeMove<BLACK>(Board& board, u16 movement);
-template void unmakeMove<WHITE>(Board& board);
-template void unmakeMove<BLACK>(Board& board);
+template std::span<u16> Board::getMoves<WHITE>(std::array<u16, 218>&, const MoveTables&) const;
+template std::span<u16> Board::getMoves<BLACK>(std::array<u16, 218>&, const MoveTables&) const;
+template u64 Board::isCheck<WHITE>(const MoveTables&) const;
+template u64 Board::isCheck<BLACK>(const MoveTables&) const;
+template void Board::makeMove<WHITE>(u16);
+template void Board::makeMove<BLACK>(u16);
+template void Board::unmakeMove<WHITE>();
+template void Board::unmakeMove<BLACK>();
