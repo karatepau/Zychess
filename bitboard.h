@@ -11,6 +11,9 @@
 #include <bit>
 #include <utility>
 #include <algorithm>
+#include <iostream>
+#include <string>
+#include <sstream>
 
 using i8  = std::int8_t;
 using u8  = std::uint8_t;
@@ -83,6 +86,7 @@ class Board {
     void makeMove(u16 movement);
     template<Color C>
     void unmakeMove();
+    void fenLoader(const std::vector<std::string>& fen);
 
   private:
     std::array<u64, 12> pieces_;
