@@ -55,13 +55,7 @@ struct MoveTables {
 
 class Board {
   public:
-    Board() {
-      pieces_.fill(0);
-      occupancies_.fill(0);
-      squares_.fill(-1);
-      turn_ = 0;
-      extras_[0] = {};
-    }
+    Board() {reset();}
     u64 pieces(i32 piece) const {
       return pieces_[piece];
     }
@@ -99,6 +93,13 @@ class Board {
     u64 getAttacks(const MoveTables& t) const;
     template<Color C>
     void updateBoard(u8 piece, u8 destination, u64 oriMask, u64 destMask, u8 passantSq, u8 castlingRights);
+    void reset() {
+      pieces_.fill(0);
+      occupancies_.fill(0);
+      squares_.fill(-1);
+      turn_ = 0;
+      extras_[0] = {};
+    }
 };
 
 extern const std::array<u64, 64> nMsk;

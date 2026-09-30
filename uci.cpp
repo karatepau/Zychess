@@ -1,6 +1,14 @@
 #include "uci.h"
 
+i32 sqToIndex(const std::string& square) {
+  i32 x = square[0] - 'a';
+  i32 y = square[1] - '1';
+  return y * 8 + x;
+}
+
+
 void Board::fenLoader(const std::vector<std::string>& fen) {
+  reset();
   i32 c = 56;
   for (char piece : fen[1]) {
     switch (piece) {
@@ -31,10 +39,21 @@ void Board::fenLoader(const std::vector<std::string>& fen) {
     }
   }
   for (u64 i = 0; i < 64; i++) {
-    if (squares_[i] != -1) {
-      pieces_[squares_[i]] |= 1ULL << i;
-    }
+    if (squares_[i] == -1) continue;
+    u64 bit = 1ULL << i;
+    pieces_[squares_[i]] |= bit;
+    occupancies_[squares_[i] < 6 ? WHITE : BLACK] |= bit;
+    occupancies_[BOTH] |= bit;
   }
+  turn_ = (fen[2][0] == 'b');
+
+  Extras& e = extras_[turn_];
+  e = {};
+  if (fen[3].contains('K')) e.castlingRights |= WHITE_OO;
+  if (fen[3].contains('Q')) e.castlingRights |= WHITE_OOO;
+  if (fen[3].contains('k')) e.castlingRights |= BLACK_OO;
+  if (fen[3].contains('q')) e.castlingRights |= BLACK_OOO;
+  e.passantSq = (fen[4] == "-") ? 0 : sqToIndex(fen[4]);
 }
 
 
