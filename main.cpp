@@ -2,6 +2,7 @@
 #include "bitboard.h"
 #include "moves.h"
 #include "uci.h"
+#include "search.h"
 #include <iomanip>
 #include <iostream>
 

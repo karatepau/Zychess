@@ -24,6 +24,7 @@ using u32 = std::uint32_t;
 using i64 = std::int64_t;
 using u64 = std::uint64_t;
 using Color = i32;
+constexpr i32 INF = 1000000;
 constexpr Color WHITE = 0;
 constexpr Color BLACK = 1;
 constexpr Color BOTH  = 2;
@@ -53,6 +54,13 @@ struct MoveTables {
   std::array<std::vector<u64>, 64> rook;
 };
 
+struct MoveList {
+    std::array<u16, 218> data;
+    i32 count = 0;
+    u16* begin() {return data.data();}
+    u16* end() {return data.data() + count;}
+};
+
 class Board {
   public:
     Board() {reset();}
@@ -73,14 +81,16 @@ class Board {
     }
     
     template<Color C>
-    std::span<u16> getMoves(std::array<u16, 218>& maxMovesList, const MoveTables& t) const;
+    MoveList getMoves() const;
     template<Color C>
-    u64 isCheck(const MoveTables& moveTables) const;
+    u64 isCheck() const;
     template<Color C>
     void makeMove(u16 movement);
     template<Color C>
     void unmakeMove();
     void fenLoader(const std::vector<std::string>& fen);
+    template<Color C>
+    u16 getBestMove(i32 depth);
 
   private:
     std::array<u64, 12> pieces_;
@@ -90,9 +100,13 @@ class Board {
     std::array<Extras, 2048> extras_;
 
     template<Color C>
-    u64 getAttacks(const MoveTables& t) const;
+    u64 getAttacks() const;
     template<Color C>
     void updateBoard(u8 piece, u8 destination, u64 oriMask, u64 destMask, u8 passantSq, u8 castlingRights);
+    template<Color C>
+    i32 negaMax (i32 alpha, i32 beta, i32 depth);
+    template<Color C>
+    i32 eval() const;
     void reset() {
       pieces_.fill(0);
       occupancies_.fill(0);
@@ -106,5 +120,4 @@ extern const std::array<u64, 64> nMsk;
 extern const std::array<u64, 64> kMsk;
 extern const std::array<u64, 64> bMsk;
 extern const std::array<u64, 64> rMsk;
-
-MoveTables gnMoves();
+extern const MoveTables t;

@@ -157,3 +157,5 @@ MoveTables gnMoves () {
   }
   return moves;
 }
+
+const MoveTables t = gnMoves();

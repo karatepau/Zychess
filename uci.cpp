@@ -49,10 +49,10 @@ void Board::fenLoader(const std::vector<std::string>& fen) {
 
   Extras& e = extras_[turn_];
   e = {};
-  if (fen[3].contains('K')) e.castlingRights |= WHITE_OO;
-  if (fen[3].contains('Q')) e.castlingRights |= WHITE_OOO;
-  if (fen[3].contains('k')) e.castlingRights |= BLACK_OO;
-  if (fen[3].contains('q')) e.castlingRights |= BLACK_OOO;
+  if (fen[3].find('K') != std::string::npos) e.castlingRights |= WHITE_OO;
+  if (fen[3].find('Q') != std::string::npos) e.castlingRights |= WHITE_OOO;
+  if (fen[3].find('k') != std::string::npos) e.castlingRights |= BLACK_OO;
+  if (fen[3].find('q') != std::string::npos) e.castlingRights |= BLACK_OOO;
   e.passantSq = (fen[4] == "-") ? 0 : sqToIndex(fen[4]);
 }
 
