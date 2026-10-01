@@ -6,11 +6,25 @@ i32 sqToIndex(const std::string& square) {
   return y * 8 + x;
 }
 
+std::string moveToUCI(u16 move) {
+  if (move == 0) return "0000";
+  u8 origin = (move >> 6) & 63;
+  u8 destination = move & 63;
+  u8 flag = move >> 12;
+
+  std::string s;
+  s += static_cast<char>('a' + (origin & 7));
+  s += static_cast<char>('1' + (origin >> 3));
+  s += static_cast<char>('a' + (destination & 7));
+  s += static_cast<char>('1' + (destination >> 3));
+  if (flag >= 1 && flag <= 4) s += "nbrq"[flag - 1];
+  return s;
+}
 
 void Board::fenLoader(const std::vector<std::string>& fen) {
   reset();
   i32 c = 56;
-  for (char piece : fen[1]) {
+  for (char piece : fen[2]) {
     switch (piece) {
       case 'P': squares_[c++] = WP; break;
       case 'N': squares_[c++] = WN; break;
@@ -45,15 +59,15 @@ void Board::fenLoader(const std::vector<std::string>& fen) {
     occupancies_[squares_[i] < 6 ? WHITE : BLACK] |= bit;
     occupancies_[BOTH] |= bit;
   }
-  turn_ = (fen[2][0] == 'b');
+  turn_ = (fen[3][0] == 'b');
 
   Extras& e = extras_[turn_];
   e = {};
-  if (fen[3].find('K') != std::string::npos) e.castlingRights |= WHITE_OO;
-  if (fen[3].find('Q') != std::string::npos) e.castlingRights |= WHITE_OOO;
-  if (fen[3].find('k') != std::string::npos) e.castlingRights |= BLACK_OO;
-  if (fen[3].find('q') != std::string::npos) e.castlingRights |= BLACK_OOO;
-  e.passantSq = (fen[4] == "-") ? 0 : sqToIndex(fen[4]);
+  if (fen[4].find('K') != std::string::npos) e.castlingRights |= WHITE_OO;
+  if (fen[4].find('Q') != std::string::npos) e.castlingRights |= WHITE_OOO;
+  if (fen[4].find('k') != std::string::npos) e.castlingRights |= BLACK_OO;
+  if (fen[4].find('q') != std::string::npos) e.castlingRights |= BLACK_OOO;
+  e.passantSq = (fen[5] == "-") ? 0 : sqToIndex(fen[5]);
 }
 
 
@@ -64,12 +78,21 @@ void uci (const std::string& command, Board& board) {
   while (stream >> parameter) {
       parameters.push_back(parameter);
   }
-  if (parameters[0] == "fen") {
+  if (parameters[0] == "position") {
     if (parameters[1] == "startpos") {
-
+      uci("position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", board);
     }
-    else {
+    else if (parameters[1] == "fen") {
       board.fenLoader(parameters);
+    }
+  }
+  else if (parameters[0] == "go") {
+    if (parameters[1] == "depth") {
+      i32 depth = std::stoi(parameters[2]);
+      u16 bestMove;
+      if (board.ply() & 1) {bestMove = board.getBestMove<BLACK>(depth);}
+      else {bestMove = board.getBestMove<WHITE>(depth);}
+      std::cout << "bestmove " << moveToUCI(bestMove) << '\n';
     }
   }
 }
