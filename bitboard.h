@@ -107,6 +107,7 @@ class Board {
     i32 negaMax (i32 alpha, i32 beta, i32 depth);
     template<Color C>
     i32 eval() const;
+    std::array<i32, 218> valueMoves(const MoveList& moves);
     void reset() {
       pieces_.fill(0);
       occupancies_.fill(0);
