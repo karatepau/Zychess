@@ -1,70 +1,23 @@
 #include "bitboard.h"
 #include "moves.h"
 
-void knightAttacks(u64 pieces, u64& mask) {
-  while (pieces) {
-    u8 origin = __builtin_ctzll(pieces);
-    u64 legalMoves = nMsk[origin];
-    mask |= legalMoves;
-    POPLSB(pieces);
-  }
-}
-
-void bishopAttacks(u64 pieces, u64 both, u64& mask) {
-  while (pieces) {
-    u8 origin = __builtin_ctzll(pieces);
-    u64 legalMoves = t.bishop[origin][_pext_u64(both, bMsk[origin])];
-    mask |= legalMoves;
-    POPLSB(pieces);
-  }
-}
-
-void rookAttacks(u64 pieces, u64 both, u64& mask) {
-  while (pieces) {
-    u8 origin = __builtin_ctzll(pieces);
-    u64 legalMoves = t.rook[origin][_pext_u64(both, rMsk[origin])];
-    mask |= legalMoves;
-    POPLSB(pieces);
-  }
-}
-
-void kingAttacks(u64 pieces, u64& mask) {
-  u8 origin = __builtin_ctzll(pieces);
-  u64 legalMoves = kMsk[origin];
-  mask |= legalMoves;
-}
-
-
 template<Color C>
-void pawnAttacks(u64 pieces, u64& mask) {
-  u64 legalMoves;
+u64 Board::getAttackers(u8 square) const {
+  constexpr u8 offset = C * 6;
+  u64 mask = t.bishop[square][_pext_u64(occupancies_[BOTH], bMsk[square])] & pieces_[WB + offset];
+  mask |= t.rook[square][_pext_u64(occupancies_[BOTH], rMsk[square])] & pieces_[WR + offset];
+  mask |= t.bishop[square][_pext_u64(occupancies_[BOTH], bMsk[square])] & pieces_[WQ + offset];
+  mask |= t.rook[square][_pext_u64(occupancies_[BOTH], rMsk[square])] & pieces_[WQ + offset];
+  mask |= nMsk[square] & pieces_[WN + offset];
+  mask |= kMsk[square] & pieces_[WK + offset];
   if constexpr (C == WHITE) {
-    legalMoves = ((pieces & 0xfefefefefefefefeULL) << 7);
-    mask |= legalMoves;
-    legalMoves = ((pieces & 0x7f7f7f7f7f7f7f7fULL) << 9);
-    mask |= legalMoves;
+    mask |= ((1ULL << square & 0x7f7f7f7f7f7f7f7fULL) >> 7) & pieces_[WP];
+    mask |= ((1ULL << square & 0xfefefefefefefefeULL) >> 9) & pieces_[WP];
   }
-
   else {
-    legalMoves = ((pieces & 0x7f7f7f7f7f7f7f7fULL) >> 7);
-    mask |= legalMoves;
-    legalMoves = ((pieces & 0xfefefefefefefefeULL) >> 9);
-    mask |= legalMoves;
+    mask |= ((1ULL << square & 0xfefefefefefefefeULL) << 7) & pieces_[BP];
+    mask |= ((1ULL << square & 0x7f7f7f7f7f7f7f7fULL) << 9) & pieces_[BP];
   }
-}
-
-template<Color C>
-u64 Board::getAttacks() const {
-  u64 mask = 0;
-  constexpr i32 offset = C * 6;
-  u64 occ = occupancies_[BOTH] & ~pieces_[WK + (C ^ 1) * 6];
-  knightAttacks(pieces_[WN + offset], mask);
-  bishopAttacks(pieces_[WB + offset], occ, mask);
-  rookAttacks(pieces_[WR + offset], occ, mask);
-  bishopAttacks(pieces_[WQ + offset], occ, mask);
-  rookAttacks(pieces_[WQ + offset], occ, mask);
-  kingAttacks(pieces_[WK + offset], mask);
-  pawnAttacks<C>(pieces_[WP + offset], mask);
   return mask;
 }
 
@@ -75,64 +28,31 @@ void moves(u64 legalMoves, u8 origin, u16*& ptr) {
   }
 }
 
-void knightMoves(u64 pieces, u64 board, u16*& ptr) {
+void knightCaptures(u64 pieces, u64 enemies, u16*& ptr) {
   while (pieces) {
     u8 origin = __builtin_ctzll(pieces);
-    u64 legalMoves = nMsk[origin] & ~board;
+    u64 legalMoves = nMsk[origin] & enemies;
     moves(legalMoves, origin, ptr);
     POPLSB(pieces);
   }
 }
 
-void bishopMoves(u64 pieces, u64 friends, u64 both, u16*& ptr) {
+void bishopCaptures(u64 pieces, u64 enemies, u64 both, u16*& ptr) {
   while (pieces) {
     u8 origin = __builtin_ctzll(pieces);
-    u64 legalMoves = t.bishop[origin][_pext_u64(both, bMsk[origin])];
-    legalMoves &= ~friends;
+    u64 legalMoves = t.bishop[origin][_pext_u64(both, bMsk[origin])] & enemies;
     moves(legalMoves, origin, ptr);
     POPLSB(pieces);
   }
 }
 
-void rookMoves(u64 pieces, u64 friends, u64 both, u16*& ptr) {
+void rookCaptures(u64 pieces, u64 enemies, u64 both, u16*& ptr) {
   while (pieces) {
     u8 origin = __builtin_ctzll(pieces);
-    u64 legalMoves = t.rook[origin][_pext_u64(both, rMsk[origin])];
-    legalMoves &= ~friends;
+    u64 legalMoves = t.rook[origin][_pext_u64(both, rMsk[origin])] & enemies;
     moves(legalMoves, origin, ptr);
     POPLSB(pieces);
   }
-}
-
-void kingMove(u64 legalMoves, u8 origin, u8 flag, u16*& ptr) {
-  while (legalMoves) {
-    *ptr++ = (flag << 12) | (origin << 6) | __builtin_ctzll(legalMoves);
-    POPLSB(legalMoves);
-  }
-}
-
-template<Color C>
-void kingMoves(u64 pieces, u64 friends, u64 both, u64 legalSquares, u8 castlingRights, u16*& ptr) {
-  u8 origin = __builtin_ctzll(pieces);
-  u64 legalMoves = kMsk[origin] & ~friends & legalSquares;
-  if constexpr (C == WHITE) {
-    if ((0x70u & legalSquares & ~both) == 0x70u && (castlingRights & WHITE_OO) == WHITE_OO) {
-      legalMoves |= 0x40;
-    }
-    if ((0x1c & legalSquares & ~both) == 0x1c && (0x02ULL & ~both) == 0x02ULL && (castlingRights & WHITE_OOO) == WHITE_OOO) {
-      legalMoves |= 0x4;
-    }
-  }
-
-  else {
-    if ((0x7000000000000000ULL & legalSquares & ~both) == 0x7000000000000000ULL && (castlingRights & BLACK_OO) == BLACK_OO) {
-      legalMoves |= 0x4000000000000000ULL;
-    }
-    if ((0x1c00000000000000ULL & legalSquares & ~both) == 0x1c00000000000000ULL && (0x200000000000000ULL & ~both) == 0x200000000000000ULL && (castlingRights & BLACK_OOO) == BLACK_OOO) {
-      legalMoves |= 0x400000000000000ULL;
-    }
-  }
-  kingMove(legalMoves, origin, 6, ptr);
 }
 
 void pawnMove (u64& legalMoves, u8 flag, u16*& ptr, i8 destDiff) {
@@ -152,14 +72,11 @@ void pawnMove (u64& legalMoves, u8 flag, u16*& ptr, i8 destDiff) {
 }
 
 template<Color C>
-void pawnMoves(u64 pieces, u64 both, u64 enemies, u16*& ptr, u64 passantSq) {
-  u64 empty = ~both;
+void pawnNoQuietMoves(u64 pieces, u64 empty, u64 enemies, u16*& ptr, u64 passantSq) {
   u64 legalMoves;
   if constexpr (C == WHITE) {  
-    legalMoves = (pieces << 8) & empty;
-    pawnMove(legalMoves, 0, ptr, -8);
-    legalMoves = ((((pieces & 0xff00ULL) << 8) & empty) << 8) & empty;
-    pawnMove(legalMoves, 5, ptr, -16);
+    legalMoves = (pieces << 8) & empty & 0xff000000000000ffULL;
+    if (legalMoves) {pawnMove(legalMoves, 0, ptr, -8);}
     legalMoves = ((pieces & 0xfefefefefefefefeULL) << 7) & enemies;
     pawnMove(legalMoves, 0, ptr, -7);
     legalMoves = ((pieces & 0x7f7f7f7f7f7f7f7fULL) << 9) & enemies;
@@ -171,10 +88,8 @@ void pawnMoves(u64 pieces, u64 both, u64 enemies, u16*& ptr, u64 passantSq) {
   }
 
   else {
-    legalMoves = (pieces >> 8) & empty;
-    pawnMove(legalMoves, 0, ptr, 8);
-    legalMoves = ((((pieces & 0xff000000000000ULL) >> 8) & empty) >> 8) & empty;
-    pawnMove(legalMoves, 5, ptr, 16);
+    legalMoves = (pieces >> 8) & empty & 0xff000000000000ffULL;
+    if (legalMoves) {pawnMove(legalMoves, 0, ptr, 8);}
     legalMoves = ((pieces & 0x7f7f7f7f7f7f7f7fULL) >> 7) & enemies;
     pawnMove(legalMoves, 0, ptr, 7);
     legalMoves = ((pieces & 0xfefefefefefefefeULL) >> 9) & enemies;
@@ -186,20 +101,137 @@ void pawnMoves(u64 pieces, u64 both, u64 enemies, u16*& ptr, u64 passantSq) {
   }
 }
 
+void knightQuietMoves(u64 pieces, u64 both, u16*& ptr) {
+  while (pieces) {
+    u8 origin = __builtin_ctzll(pieces);
+    u64 legalMoves = nMsk[origin] & ~both;
+    moves(legalMoves, origin, ptr);
+    POPLSB(pieces);
+  }
+}
+
+void bishopQuietMoves(u64 pieces, u64 both, u16*& ptr) {
+  while (pieces) {
+    u8 origin = __builtin_ctzll(pieces);
+    u64 legalMoves = t.bishop[origin][_pext_u64(both, bMsk[origin])];
+    legalMoves &= ~both;
+    moves(legalMoves, origin, ptr);
+    POPLSB(pieces);
+  }
+}
+
+void rookQuietMoves(u64 pieces, u64 both, u16*& ptr) {
+  while (pieces) {
+    u8 origin = __builtin_ctzll(pieces);
+    u64 legalMoves = t.rook[origin][_pext_u64(both, rMsk[origin])];
+    legalMoves &= ~both;
+    moves(legalMoves, origin, ptr);
+    POPLSB(pieces);
+  }
+}
+
+void kingMove(u64 legalMoves, u8 origin, u8 flag, u16*& ptr) {
+  while (legalMoves) {
+    *ptr++ = (flag << 12) | (origin << 6) | __builtin_ctzll(legalMoves);
+    POPLSB(legalMoves);
+  }
+}
+
+template<Color C>
+void kingNoQuietMoves(const Board& board, u16*& ptr) {
+  constexpr i32 offset = C * 6;
+  u8 origin = __builtin_ctzll(board.pieces_[WK + offset]);
+  u64 legalMoves = kMsk[origin] & board.occupancies_[C ^ 1];
+  kingMove(legalMoves, origin, 6, ptr);
+}
+
+template<Color C>
+void kingQuietMoves(const Board& board, u16*& ptr) {
+  constexpr i32 offset = C * 6;
+  u8 origin = __builtin_ctzll(board.pieces_[WK + offset]);
+  u64 legalMoves = kMsk[origin] & ~board.occupancies_[BOTH];
+  constexpr i32 enemy = C ^ 1;
+  if constexpr (C == WHITE) {
+    if (!(0x60ULL & board.occupancies_[BOTH]) && (board.extras_[board.turn_].castlingRights & WHITE_OO) && !board.getAttackers<enemy>(4) && !board.getAttackers<enemy>(5) && !board.getAttackers<enemy>(6)) {
+      legalMoves |= 0x40;
+    }
+    if (!(0xeULL & board.occupancies_[BOTH]) && (board.extras_[board.turn_].castlingRights & WHITE_OOO) && !board.getAttackers<enemy>(4) && !board.getAttackers<enemy>(3) && !board.getAttackers<enemy>(2)) {
+      legalMoves |= 0x4;
+    }
+  }
+
+  else {
+    if (!(0x6000000000000000ULL & board.occupancies_[BOTH]) && (board.extras_[board.turn_].castlingRights & BLACK_OO) && !board.getAttackers<enemy>(60) && !board.getAttackers<enemy>(61) && !board.getAttackers<enemy>(62)) {
+      legalMoves |= 0x4000000000000000ULL;
+    }
+    if (!(0xe00000000000000ULL & board.occupancies_[BOTH]) && (board.extras_[board.turn_].castlingRights & BLACK_OOO)  && !board.getAttackers<enemy>(60) && !board.getAttackers<enemy>(59) && !board.getAttackers<enemy>(58)) {
+      legalMoves |= 0x400000000000000ULL;
+    }
+  }
+  kingMove(legalMoves, origin, 6, ptr);
+}
+
+template<Color C>
+void pawnQuietMoves(u64 pieces, u64 both, u64 enemies, u16*& ptr) {
+  u64 empty = ~both;
+  u64 legalMoves;
+  if constexpr (C == WHITE) {  
+    legalMoves = (pieces << 8) & empty & ~0xff00000000000000ULL;
+    pawnMove(legalMoves, 0, ptr, -8);
+    legalMoves = ((((pieces & 0xff00ULL) << 8) & empty) << 8) & empty;
+    pawnMove(legalMoves, 5, ptr, -16);
+    legalMoves = ((pieces & 0xfefefefefefefefeULL) << 7) & enemies;
+  }
+
+  else {
+    legalMoves = (pieces >> 8) & empty & ~0xffULL;
+    pawnMove(legalMoves, 0, ptr, 8);
+    legalMoves = ((((pieces & 0xff000000000000ULL) >> 8) & empty) >> 8) & empty;
+    pawnMove(legalMoves, 5, ptr, 16);
+    legalMoves = ((pieces & 0x7f7f7f7f7f7f7f7fULL) >> 7) & enemies;
+  }
+}
+
 template<Color C>
 MoveList Board::getMoves() const {
   MoveList moves;
   u16* ptr = moves.data.data();
   constexpr u8 offset = C * 6;
   constexpr Color enemy = C ^ 1;
-  u64 checkMask = getAttacks<enemy>();
-  knightMoves(pieces_[WN + offset], occupancies_[C], ptr);
-  bishopMoves(pieces_[WB + offset], occupancies_[C], occupancies_[BOTH], ptr);
-  rookMoves(pieces_[WR + offset], occupancies_[C], occupancies_[BOTH], ptr);
-  bishopMoves(pieces_[WQ + offset], occupancies_[C], occupancies_[BOTH], ptr);
-  rookMoves(pieces_[WQ + offset], occupancies_[C], occupancies_[BOTH], ptr);
-  kingMoves<C>(pieces_[WK + offset], occupancies_[C], occupancies_[BOTH]^pieces_[WK + offset], ~checkMask, extras_[turn_].castlingRights, ptr);
-  pawnMoves<C>(pieces_[WP + offset], occupancies_[BOTH], occupancies_[enemy], ptr, 1ULL << extras_[turn_].passantSq);
+  if (std::popcount(getAttackers<C ^ 1>(__builtin_ctzll(pieces_[WK + offset]))) < 2) {
+    pawnNoQuietMoves<C>(pieces_[WP + offset], ~occupancies_[BOTH], occupancies_[enemy], ptr, 1ULL << extras_[turn_].passantSq);
+    knightCaptures(pieces_[WN + offset], occupancies_[enemy], ptr);
+    bishopCaptures(pieces_[WB + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+    rookCaptures(pieces_[WR + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+    bishopCaptures(pieces_[WQ + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+    rookCaptures(pieces_[WQ + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+
+    bishopQuietMoves(pieces_[WQ + offset], occupancies_[BOTH], ptr);
+    rookQuietMoves(pieces_[WQ + offset], occupancies_[BOTH], ptr);
+    rookQuietMoves(pieces_[WR + offset], occupancies_[BOTH], ptr);
+    bishopQuietMoves(pieces_[WB + offset], occupancies_[BOTH], ptr);
+    knightQuietMoves(pieces_[WN + offset], occupancies_[BOTH], ptr);
+    pawnQuietMoves<C>(pieces_[WP + offset], occupancies_[BOTH], occupancies_[enemy], ptr);
+  }
+  kingNoQuietMoves<C>(*this, ptr);
+  kingQuietMoves<C>(*this, ptr);
+  moves.count = ptr - moves.data.data();
+  return moves;
+}
+
+template<Color C>
+MoveList Board::getNoQuietMoves() const {
+  MoveList moves;
+  u16* ptr = moves.data.data();
+  constexpr u8 offset = C * 6;
+  constexpr Color enemy = C ^ 1;
+  pawnNoQuietMoves<C>(pieces_[WP + offset], ~occupancies_[BOTH], occupancies_[enemy], ptr, 1ULL << extras_[turn_].passantSq);
+  knightCaptures(pieces_[WN + offset], occupancies_[enemy], ptr);
+  bishopCaptures(pieces_[WB + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+  rookCaptures(pieces_[WR + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+  bishopCaptures(pieces_[WQ + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+  rookCaptures(pieces_[WQ + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+  kingNoQuietMoves<C>(*this, ptr);
   moves.count = ptr - moves.data.data();
   return moves;
 }
@@ -390,8 +422,8 @@ void Board::unmakeMove () {
 
 template MoveList Board::getMoves<WHITE>() const;
 template MoveList Board::getMoves<BLACK>() const;
-template u64 Board::isCheck<WHITE>() const;
-template u64 Board::isCheck<BLACK>() const;
+template MoveList Board::getNoQuietMoves<WHITE>() const;
+template MoveList Board::getNoQuietMoves<BLACK>() const;
 template void Board::makeMove<WHITE>(u16);
 template void Board::makeMove<BLACK>(u16);
 template void Board::unmakeMove<WHITE>();

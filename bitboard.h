@@ -64,24 +64,17 @@ struct MoveList {
 class Board {
   public:
     Board() {reset();}
-    u64 pieces(i32 piece) const {
-      return pieces_[piece];
-    }
-    u64 occupancy(i32 c) const {
-      return occupancies_[c];
-    }
-    i8 operator[](i32 sq) const {
-      return squares_[sq];
-    }
-    u16 ply() const {
-      return turn_;
-    }
-    const Extras& state() const {
-      return extras_[turn_];
-    }
-    
+    std::array<u64, 12> pieces_;
+    std::array<u64, 3> occupancies_;
+    std::array<i8, 64> squares_;
+    u16 turn_;
+    std::array<Extras, 2048> extras_;
+    template<Color C>
+    u64 getAttackers(u8 square) const;
     template<Color C>
     MoveList getMoves() const;
+    template<Color C>
+    MoveList getNoQuietMoves() const;
     template<Color C>
     u64 isCheck() const;
     template<Color C>
@@ -93,21 +86,16 @@ class Board {
     u16 getBestMove(i32 depth);
 
   private:
-    std::array<u64, 12> pieces_;
-    std::array<u64, 3> occupancies_;
-    std::array<i8, 64> squares_;
-    u16 turn_;
-    std::array<Extras, 2048> extras_;
-
     template<Color C>
     u64 getAttacks() const;
     template<Color C>
     void updateBoard(u8 piece, u8 destination, u64 oriMask, u64 destMask, u8 passantSq, u8 castlingRights);
     template<Color C>
-    i32 negaMax (i32 alpha, i32 beta, i32 depth);
+    i32 qSearch (i32 alpha, i32 beta);
+    template<Color C>
+    i32 negaMax (i32 alpha, i32 beta, i32 depth, bool allowNullMove);
     template<Color C>
     i32 eval() const;
-    std::array<i32, 218> valueMoves(const MoveList& moves);
     void reset() {
       pieces_.fill(0);
       occupancies_.fill(0);
