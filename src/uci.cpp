@@ -1,4 +1,5 @@
 #include "uci.h"
+#include "search.h"
 
 i32 sqToIndex(const std::string& square) {
   i32 x = square[0] - 'a';
@@ -135,11 +136,11 @@ void uci (const std::string& command, Board& board) {
     if (parameters.size() > 2 && parameters[1] == "depth") {
       i32 depth = std::stoi(parameters[2]);
       u16 bestMove;
-      if (board.turn_ & 1) {bestMove = board.getBestMove<BLACK>(depth);}
-      else {bestMove = board.getBestMove<WHITE>(depth);}
+      if (board.turn_ & 1) {bestMove = getBestMove<BLACK>(board, depth);}
+      else {bestMove = getBestMove<WHITE>(board, depth);}
       std::cout << "bestmove " << moveToUCI(bestMove) << '\n';
     }
-    else uci("go depth 8", board);
+    else uci("go depth 7", board);
   }
   else if (parameters[0] == "uci") {
     std::cout << "id name Zychess" << '\n';

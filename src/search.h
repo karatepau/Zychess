@@ -11,3 +11,6 @@ inline constexpr std::array<std::array<i32, 7>, 7> MVV_LVA = {{
   {{0, 55, 54, 53, 52, 51, 50}},
   {{0,  0,  0,  0,  0,  0,  0}}
 }};
+
+template<Color C>
+u16 getBestMove(Board& board, i32 depth);

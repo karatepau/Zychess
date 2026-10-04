@@ -1,4 +1,5 @@
 #include "search.h"
+#include "eval.h"
 
 template<Color C>
 std::array<i32, 218> valueMoves(const Board& board, const MoveList& moves) {
@@ -37,16 +38,16 @@ void promoteBestMove(i32 startIndex, MoveList& moves, std::array<i32, 218>& scor
 }
 
 template<Color C>
-i32 Board::qSearch(i32 alpha, i32 beta) {
-  i32 bestValue = eval<C>();
+i32 qSearch(Board& board, i32 alpha, i32 beta) {
+  i32 bestValue = eval<C>(board);
   constexpr u8 offset = C * 6;
-  u64 inCheck = getAttackers<C ^ 1>(__builtin_ctzll(pieces_[WK + offset]));
+  u64 inCheck = board.getAttackers<C ^ 1>(__builtin_ctzll(board.pieces_[WK + offset]));
   MoveList moves;
   if (inCheck) {
-    moves = getMoves<C>();
+    moves = board.getMoves<C>();
   }
   else {
-    moves = getNoQuietMoves<C>();
+    moves = board.getNoQuietMoves<C>();
     if (bestValue >= beta) {
       return beta;
     }
@@ -55,80 +56,80 @@ i32 Board::qSearch(i32 alpha, i32 beta) {
     }
   }
   i32 legal = 0;
-  std::array<i32, 218> movesEval = valueMoves<C>(*this, moves);
+  std::array<i32, 218> movesEval = valueMoves<C>(board, moves);
   for (i32 i = 0; i < moves.count; i++) {
     promoteBestMove(i, moves, movesEval);
     u8 flag = moves.data[i] >> 12;
     if (!inCheck && flag >= 1 && flag <= 3) continue;
-    makeMove<C>(moves.data[i]);
-    if (getAttackers<C ^ 1>(__builtin_ctzll(pieces_[WK + offset]))) {
-      unmakeMove<C>();
+    board.makeMove<C>(moves.data[i]);
+    if (board.getAttackers<C ^ 1>(__builtin_ctzll(board.pieces_[WK + offset]))) {
+      board.unmakeMove<C>();
       continue;
     }
     legal++;
-    i32 score = -qSearch<C ^ 1>(-beta, -alpha);
-    unmakeMove<C>();
+    i32 score = -qSearch<C ^ 1>(board, -beta, -alpha);
+    board.unmakeMove<C>();
     if (score >= beta) return beta;
     if (score > alpha) alpha = score;
   }
   if (inCheck && legal == 0) {
-    return -INF;
+    return -INF + board.turn_;
   }
   return alpha;
 }
 
 template<Color C>
-i32 Board::negaMax(i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
-  if (depth == 0) return qSearch<C>(alpha, beta);
+i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
+  if (depth == 0) return qSearch<C>(board, alpha, beta);
   constexpr u8 offset = C * 6;
-  u64 inCheck = getAttackers<C ^ 1>(__builtin_ctzll(pieces_[WK + offset]));
-  if (allowNullMove && depth >= 3 && !inCheck && (pieces_[WN + offset] | pieces_[WB + offset] | pieces_[WR + offset] | pieces_[WQ + offset])) {
-    extras_[turn_ + 1] = extras_[turn_];
-    extras_[turn_ + 1].passantSq = 0;
-    turn_++;
-    i32 nullMoveScore = -negaMax<C ^ 1>(-beta, -beta + 1, depth - 3, false);
-    turn_--;
+  u64 inCheck = board.getAttackers<C ^ 1>(__builtin_ctzll(board.pieces_[WK + offset]));
+  if (allowNullMove && depth >= 3 && !inCheck && (board.pieces_[WN + offset] | board.pieces_[WB + offset] | board.pieces_[WR + offset] | board.pieces_[WQ + offset])) {
+    board.extras_[board.turn_ + 1] = board.extras_[board.turn_];
+    board.extras_[board.turn_ + 1].passantSq = 0;
+    board.turn_++;
+    i32 nullMoveScore = -negaMax<C ^ 1>(board, -beta, -beta + 1, depth - 3, false);
+    board.turn_--;
     if (nullMoveScore >= beta) return beta;
   }
-  MoveList moves = getMoves<C>();
+  MoveList moves = board.getMoves<C>();
   i32 legal = 0;
-  std::array<i32, 218> movesEval = valueMoves<C>(*this, moves);
+  std::array<i32, 218> movesEval = valueMoves<C>(board, moves);
   for (i32 i = 0; i < moves.count; i++) {
     promoteBestMove(i, moves, movesEval);
-    makeMove<C>(moves.data[i]);
-    if (getAttackers<C ^ 1>(__builtin_ctzll(pieces_[WK + offset]))) {
-      unmakeMove<C>();
+    board.makeMove<C>(moves.data[i]);
+    if (board.getAttackers<C ^ 1>(__builtin_ctzll(board.pieces_[WK + offset]))) {
+      board.unmakeMove<C>();
       continue;
     }
     legal++;
-    i32 score = -negaMax<C ^ 1>(-beta, -alpha, depth - 1, allowNullMove);
-    unmakeMove<C>();
+    i32 score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, allowNullMove);
+    board.unmakeMove<C>();
     if (score >= beta) return beta;
     if (score > alpha) alpha = score;
   }
   if (legal == 0) {
-    if (inCheck) return -INF + turn_;
+    if (inCheck) return -INF + board.turn_;
     return 0;
   }
   return alpha;
 }
 
 template<Color C>
-u16 Board::getBestMove(i32 depth) {
+u16 getBestMove(Board& board, i32 depth) {
   constexpr u8 offset = C * 6;
-  MoveList moves = getMoves<C>();
+  MoveList moves = board.getMoves<C>();
   i32 alpha = -INF -1000;
   u16 bestMove = 0;
-  std::array<i32, 218> movesEval = valueMoves<C>(*this, moves);
+  std::array<i32, 218> movesEval = valueMoves<C>(board, moves);
   for (i32 i = 0; i < moves.count; i++) {
     promoteBestMove(i, moves, movesEval);
-    makeMove<C>(moves.data[i]);
-    if (getAttackers<C ^ 1>(__builtin_ctzll(pieces_[WK + offset]))) {
-      unmakeMove<C>();
+    board.makeMove<C>(moves.data[i]);
+    if (board.getAttackers<C ^ 1>(__builtin_ctzll(board.pieces_[WK + offset]))) {
+      board.unmakeMove<C>();
       continue;
     }
-    i32 score = -negaMax<C ^ 1>(-INF, -alpha, depth - 1, true);
-    unmakeMove<C>();
+    i32 score = -negaMax<C ^ 1>(board, -INF, -alpha, depth - 1, true);
+    board.unmakeMove<C>();
     if (score > alpha) {
       alpha = score;
       bestMove = moves.data[i];
@@ -137,5 +138,5 @@ u16 Board::getBestMove(i32 depth) {
   return bestMove;
 }
 
-template u16 Board::getBestMove<WHITE>(i32);
-template u16 Board::getBestMove<BLACK>(i32);
+template u16 getBestMove<WHITE>(Board& board, i32 depth);
+template u16 getBestMove<BLACK>(Board& board, i32 depth);

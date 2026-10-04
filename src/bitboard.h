@@ -24,6 +24,7 @@ using u32 = std::uint32_t;
 using i64 = std::int64_t;
 using u64 = std::uint64_t;
 using Color = i32;
+#define POPLSB(x) ((x) &= ((x) - 1))
 constexpr i32 INF = 1000000;
 constexpr Color WHITE = 0;
 constexpr Color BLACK = 1;
@@ -83,17 +84,9 @@ class Board {
     void unmakeMove();
     void fenLoader(const std::vector<std::string>& fen);
     template<Color C>
-    u16 getBestMove(i32 depth);
-    template<Color C>
     u64 getAttacks() const;
     template<Color C>
     void updateBoard(u8 piece, u8 destination, u64 oriMask, u64 destMask, u8 passantSq, u8 castlingRights);
-    template<Color C>
-    i32 qSearch (i32 alpha, i32 beta);
-    template<Color C>
-    i32 negaMax (i32 alpha, i32 beta, i32 depth, bool allowNullMove);
-    template<Color C>
-    i32 eval() const;
     void reset() {
       pieces_.fill(0);
       occupancies_.fill(0);

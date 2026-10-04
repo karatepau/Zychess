@@ -424,6 +424,8 @@ template MoveList Board::getMoves<WHITE>() const;
 template MoveList Board::getMoves<BLACK>() const;
 template MoveList Board::getNoQuietMoves<WHITE>() const;
 template MoveList Board::getNoQuietMoves<BLACK>() const;
+template u64 Board::getAttackers<WHITE>(u8 square) const;
+template u64 Board::getAttackers<BLACK>(u8 square) const;
 template void Board::makeMove<WHITE>(u16);
 template void Board::makeMove<BLACK>(u16);
 template void Board::unmakeMove<WHITE>();
