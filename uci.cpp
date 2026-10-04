@@ -21,6 +21,40 @@ std::string moveToUCI(u16 move) {
   return s;
 }
 
+void UCIToMove(std::string cords, Board& board) {
+  i32 origin = sqToIndex(cords.substr(0, 2));
+  i32 destination = sqToIndex(cords.substr(2, 2));
+  i32 coronedPiece = 0;
+  if (cords.size() == 5) {
+    switch(cords[4]) {
+      case 'n': coronedPiece = 1; break;
+      case 'b': coronedPiece = 2; break;
+      case 'r': coronedPiece = 3; break;
+      case 'q': coronedPiece = 4; break;
+    }
+  }
+  i32 C;
+  MoveList moves;
+  if (board.turn_ & BLACK) {
+    C = BLACK;
+    moves = board.getMoves<BLACK>();
+  }
+  else {
+    C = WHITE;
+    moves = board.getMoves<WHITE>();
+  }
+  for (u16 move : moves) {
+    i32 moveOrigin = (move >> 6) & 0x3f;
+    i32 moveDest = move & 0x3f;
+    i32 moveCoronedPiece = ((move >> 12) < 5) ? move >> 12 : 0;
+    if (origin == moveOrigin && destination == moveDest && coronedPiece == moveCoronedPiece) {
+      if (C) board.makeMove<BLACK>(move);
+      else board.makeMove<WHITE>(move);
+      return;
+    }
+  }
+}
+
 void Board::fenLoader(const std::vector<std::string>& fen) {
   reset();
   i32 c = 56;
@@ -78,21 +112,44 @@ void uci (const std::string& command, Board& board) {
   while (stream >> parameter) {
       parameters.push_back(parameter);
   }
-  if (parameters[0] == "position") {
+  if (parameters.empty()) return;
+  if (parameters.size() > 1 && parameters[0] == "position") {
     if (parameters[1] == "startpos") {
       uci("position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1", board);
+      if (parameters.size() > 2 && parameters[2] == "moves") {
+        for (i32 i = 3; i < parameters.size(); i++) {
+          UCIToMove(parameters[i], board);
+        }
+      }
     }
     else if (parameters[1] == "fen") {
       board.fenLoader(parameters);
+      if (parameters.size() > 8 && parameters[8] == "moves") {
+        for (i32 i = 9; i < parameters.size(); i++) {
+          UCIToMove(parameters[i], board);
+        }
+      }
     }
   }
   else if (parameters[0] == "go") {
-    if (parameters[1] == "depth") {
+    if (parameters.size() > 2 && parameters[1] == "depth") {
       i32 depth = std::stoi(parameters[2]);
       u16 bestMove;
       if (board.turn_ & 1) {bestMove = board.getBestMove<BLACK>(depth);}
       else {bestMove = board.getBestMove<WHITE>(depth);}
       std::cout << "bestmove " << moveToUCI(bestMove) << '\n';
     }
+    else uci("go depth 8", board);
+  }
+  else if (parameters[0] == "uci") {
+    std::cout << "id name Zychess" << '\n';
+    std::cout << "id author karatepau" << '\n';
+    std::cout << "uciok" << '\n';
+  }
+  else if (parameters[0] == "isready") {
+    std::cout << "readyok" << '\n';
+  }
+  else if (parameters[0] == "ucinewgame") {
+    board.reset();
   }
 }

@@ -84,8 +84,6 @@ class Board {
     void fenLoader(const std::vector<std::string>& fen);
     template<Color C>
     u16 getBestMove(i32 depth);
-
-  private:
     template<Color C>
     u64 getAttacks() const;
     template<Color C>
