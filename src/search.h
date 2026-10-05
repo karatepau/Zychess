@@ -1,6 +1,18 @@
 #pragma once
-
 #include "bitboard.h"
+#include <chrono>
+
+struct SearchState {
+  u64 nodes = 0;
+  bool stop = false;
+  i64 timeLimit = 0;
+  std::chrono::steady_clock::time_point startTime;
+  i64 timeElapsed() const {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now() - startTime).count();
+  }
+};
+inline SearchState searchState;
 
 inline constexpr std::array<std::array<i32, 7>, 7> MVV_LVA = {{
   {{0,  0,  0,  0,  0,  0,  0}},
@@ -12,5 +24,6 @@ inline constexpr std::array<std::array<i32, 7>, 7> MVV_LVA = {{
   {{0,  0,  0,  0,  0,  0,  0}}
 }};
 
+u16 iDeeping (Board& board);
 template<Color C>
 u16 getBestMove(Board& board, i32 depth);

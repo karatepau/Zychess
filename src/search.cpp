@@ -39,6 +39,12 @@ void promoteBestMove(i32 startIndex, MoveList& moves, std::array<i32, 218>& scor
 
 template<Color C>
 i32 qSearch(Board& board, i32 alpha, i32 beta) {
+  if (searchState.stop) return 0;
+  if ((searchState.nodes & 2047) == 0 && searchState.timeLimit && searchState.timeElapsed() >= searchState.timeLimit) {
+    searchState.stop = true;
+    return 0;
+  }
+  searchState.nodes++;
   i32 bestValue = eval<C>(board);
   constexpr u8 offset = C * 6;
   u64 inCheck = board.getAttackers<C ^ 1>(__builtin_ctzll(board.pieces_[WK + offset]));
@@ -69,6 +75,7 @@ i32 qSearch(Board& board, i32 alpha, i32 beta) {
     legal++;
     i32 score = -qSearch<C ^ 1>(board, -beta, -alpha);
     board.unmakeMove<C>();
+    if (searchState.stop) return 0;
     if (score >= beta) return beta;
     if (score > alpha) alpha = score;
   }
@@ -80,7 +87,13 @@ i32 qSearch(Board& board, i32 alpha, i32 beta) {
 
 template<Color C>
 i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
+  if (searchState.stop) return 0;
+  if ((searchState.nodes & 2047) == 0 && searchState.timeLimit && searchState.timeElapsed() >= searchState.timeLimit) {
+    searchState.stop = true;
+    return 0;
+  }
   if (depth == 0) return qSearch<C>(board, alpha, beta);
+  searchState.nodes++;
   constexpr u8 offset = C * 6;
   u64 inCheck = board.getAttackers<C ^ 1>(__builtin_ctzll(board.pieces_[WK + offset]));
   if (allowNullMove && depth >= 3 && !inCheck && (board.pieces_[WN + offset] | board.pieces_[WB + offset] | board.pieces_[WR + offset] | board.pieces_[WQ + offset])) {
@@ -89,6 +102,7 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
     board.turn_++;
     i32 nullMoveScore = -negaMax<C ^ 1>(board, -beta, -beta + 1, depth - 3, false);
     board.turn_--;
+    if (searchState.stop) return 0;
     if (nullMoveScore >= beta) return beta;
   }
   MoveList moves = board.getMoves<C>();
@@ -104,6 +118,7 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
     legal++;
     i32 score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, allowNullMove);
     board.unmakeMove<C>();
+    if (searchState.stop) return 0;
     if (score >= beta) return beta;
     if (score > alpha) alpha = score;
   }
@@ -116,12 +131,15 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
 
 template<Color C>
 u16 getBestMove(Board& board, i32 depth) {
+  searchState.nodes = 0;
+  searchState.stop = false;
   constexpr u8 offset = C * 6;
   MoveList moves = board.getMoves<C>();
   i32 alpha = -INF -1000;
   u16 bestMove = 0;
   std::array<i32, 218> movesEval = valueMoves<C>(board, moves);
   for (i32 i = 0; i < moves.count; i++) {
+    if (searchState.stop) break;
     promoteBestMove(i, moves, movesEval);
     board.makeMove<C>(moves.data[i]);
     if (board.getAttackers<C ^ 1>(__builtin_ctzll(board.pieces_[WK + offset]))) {
@@ -135,6 +153,25 @@ u16 getBestMove(Board& board, i32 depth) {
       bestMove = moves.data[i];
     }
   }
+  return bestMove;
+}
+
+u16 iDeeping (Board& board) {
+  u16 bestMove = (board.turn_ & BLACK) ? board.getMoves<BLACK>().data[0] : board.getMoves<WHITE>().data[0];
+  for (i32 i = 1; i < 16; i++) {
+    u16 move = 0;
+    if (board.turn_ & BLACK) {
+      move = getBestMove<BLACK>(board, i);
+    }
+    else {
+      move = getBestMove<WHITE>(board, i);
+    }
+    if (searchState.stop) {
+      break;
+    }
+    bestMove = move;
+  }
+  searchState.timeLimit = 0;
   return bestMove;
 }
 

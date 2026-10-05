@@ -7,6 +7,15 @@ i32 sqToIndex(const std::string& square) {
   return y * 8 + x;
 }
 
+i64 getValueOf (std::vector<std::string>& parameters, std::string word) {
+  for (i32 i = 0; i+1 < parameters.size(); i++) {
+    if (word == parameters[i]) {
+      return std::stoll(parameters[i + 1]);
+    }
+  }
+  return 0;
+}
+
 std::string moveToUCI(u16 move) {
   if (move == 0) return "0000";
   u8 origin = (move >> 6) & 63;
@@ -140,7 +149,24 @@ void uci (const std::string& command, Board& board) {
       else {bestMove = getBestMove<WHITE>(board, depth);}
       std::cout << "bestmove " << moveToUCI(bestMove) << '\n';
     }
-    else uci("go depth 7", board);
+    else {
+      searchState.startTime = std::chrono::steady_clock::now();
+      i64 wTime = getValueOf(parameters, "wtime"),
+      bTime = getValueOf(parameters, "btime"),
+      //wInc = getValueOf(parameters, "winc"),
+      //bInc = getValueOf(parameters, "binc"),
+      moveTime = getValueOf(parameters, "movetime");
+      if (!moveTime) {
+        if (board.turn_ & BLACK) {
+          searchState.timeLimit = bTime / 20;
+        }
+        else {
+          searchState.timeLimit = wTime / 20;
+        }
+      }
+      else {searchState.timeLimit = moveTime;}
+      std::cout << "bestmove " << moveToUCI(iDeeping(board)) << '\n';
+    }
   }
   else if (parameters[0] == "uci") {
     std::cout << "id name Zychess" << '\n';
