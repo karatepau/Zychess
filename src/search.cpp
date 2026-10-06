@@ -1,5 +1,6 @@
 #include "search.h"
 #include "eval.h"
+#include "uci.h"
 
 template<Color C>
 std::array<i32, 218> valueMoves(const Board& board, const MoveList& moves) {
@@ -130,14 +131,20 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
 }
 
 template<Color C>
-u16 getBestMove(Board& board, i32 depth) {
-  searchState.nodes = 0;
+u16 getBestMove(Board& board, i32 depth, u16 bestMove) {
   searchState.stop = false;
   constexpr u8 offset = C * 6;
   MoveList moves = board.getMoves<C>();
   i32 alpha = -INF -1000;
-  u16 bestMove = 0;
   std::array<i32, 218> movesEval = valueMoves<C>(board, moves);
+  if (bestMove) {
+    for (i32 i = 0; i < moves.count; i++) {
+      if (bestMove == moves.data[i]) {
+        movesEval[i] = INF;
+        break;
+      }
+    }
+  }
   for (i32 i = 0; i < moves.count; i++) {
     if (searchState.stop) break;
     promoteBestMove(i, moves, movesEval);
@@ -153,27 +160,44 @@ u16 getBestMove(Board& board, i32 depth) {
       bestMove = moves.data[i];
     }
   }
+  searchState.score = alpha;
   return bestMove;
 }
 
 u16 iDeeping (Board& board) {
-  u16 bestMove = (board.turn_ & BLACK) ? board.getMoves<BLACK>().data[0] : board.getMoves<WHITE>().data[0];
+  u16 bestMove = 0;
   for (i32 i = 1; i < 16; i++) {
     u16 move = 0;
     if (board.turn_ & BLACK) {
-      move = getBestMove<BLACK>(board, i);
+      move = getBestMove<BLACK>(board, i, bestMove);
     }
     else {
-      move = getBestMove<WHITE>(board, i);
+      move = getBestMove<WHITE>(board, i, bestMove);
     }
     if (searchState.stop) {
       break;
     }
     bestMove = move;
+    i64 ms = std::max<i64>(1, searchState.timeElapsed());
+    u64 nps = searchState.nodes * 1000 / ms;
+    std::string scoreStr;
+    if (searchState.score >= INF - 1000) {
+      i32 plies = INF - searchState.score - board.turn_;
+      scoreStr = "mate " + std::to_string((plies + 1) / 2);
+    }
+    else if (searchState.score <= -INF + 1000) {
+      i32 plies = INF + searchState.score - board.turn_;
+      scoreStr = "mate " + std::to_string(-(plies / 2));
+    }
+    else {
+      scoreStr = "cp " + std::to_string(searchState.score);
+    }
+    std::cout << "info depth " << i << " score " << scoreStr << " nodes " << searchState.nodes << " nps " << nps << " time " << ms << " pv " << moveToUCI(bestMove) << '\n';
   }
   searchState.timeLimit = 0;
+  searchState.nodes = 0;
   return bestMove;
 }
 
-template u16 getBestMove<WHITE>(Board& board, i32 depth);
-template u16 getBestMove<BLACK>(Board& board, i32 depth);
+template u16 getBestMove<WHITE>(Board& board, i32 depth, u16 bestMove);
+template u16 getBestMove<BLACK>(Board& board, i32 depth, u16 bestMove);

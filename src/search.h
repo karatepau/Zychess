@@ -7,9 +7,9 @@ struct SearchState {
   bool stop = false;
   i64 timeLimit = 0;
   std::chrono::steady_clock::time_point startTime;
+  i32 score = 0;
   i64 timeElapsed() const {
-    return std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now() - startTime).count();
+    return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - startTime).count();
   }
 };
 inline SearchState searchState;
@@ -26,4 +26,4 @@ inline constexpr std::array<std::array<i32, 7>, 7> MVV_LVA = {{
 
 u16 iDeeping (Board& board);
 template<Color C>
-u16 getBestMove(Board& board, i32 depth);
+u16 getBestMove(Board& board, i32 depth, u16 bestMove);

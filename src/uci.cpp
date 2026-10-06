@@ -116,6 +116,7 @@ void Board::fenLoader(const std::vector<std::string>& fen) {
 
 
 void uci (const std::string& command, Board& board) {
+  searchState.nodes = 0;
   std::istringstream stream(command);
   std::vector<std::string> parameters;
   std::string parameter;
@@ -145,8 +146,8 @@ void uci (const std::string& command, Board& board) {
     if (parameters.size() > 2 && parameters[1] == "depth") {
       i32 depth = std::stoi(parameters[2]);
       u16 bestMove;
-      if (board.turn_ & 1) {bestMove = getBestMove<BLACK>(board, depth);}
-      else {bestMove = getBestMove<WHITE>(board, depth);}
+      if (board.turn_ & 1) {bestMove = getBestMove<BLACK>(board, depth, 0);}
+      else {bestMove = getBestMove<WHITE>(board, depth, 0);}
       std::cout << "bestmove " << moveToUCI(bestMove) << '\n';
     }
     else {
@@ -165,7 +166,8 @@ void uci (const std::string& command, Board& board) {
         }
       }
       else {searchState.timeLimit = moveTime;}
-      std::cout << "bestmove " << moveToUCI(iDeeping(board)) << '\n';
+      u16 bestMove = iDeeping(board);
+      std::cout << "bestmove " << moveToUCI(bestMove) << '\n';
     }
   }
   else if (parameters[0] == "uci") {

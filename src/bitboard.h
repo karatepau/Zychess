@@ -35,8 +35,7 @@ enum {
   BP, BN, BB, BR, BQ, BK
 };
 
-enum CastlingRights : u8
-{
+enum CastlingRights : u8 {
   WHITE_OO  = 1,
   WHITE_OOO = 2,
   BLACK_OO  = 4,
