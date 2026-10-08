@@ -159,3 +159,47 @@ MoveTables gnMoves () {
 }
 
 const MoveTables t = gnMoves();
+
+ZobristKeys initializeZobristKeys () {
+  ZobristKeys zobristKeys;
+  std::mt19937_64 rng(0x1082007);
+  for (i32 i = 0; i < 12; i++) {
+    for (i32 j = 0; j < 64; j++) {
+      zobristKeys.pieces[i][j] = rng();
+    }
+  }
+  for (i32 i = 0; i < 16; i++) {
+    zobristKeys.castle[i] = rng();
+  }
+  for (i32 i = 0; i < 8; i++) {
+    zobristKeys.enPassantFile[i] = rng();
+  }
+  zobristKeys.side = rng();
+  return zobristKeys;
+}
+
+const ZobristKeys zobristKeys = initializeZobristKeys();
+
+template<Color C>
+u64 Board::getZobristHash() {
+  u64 hash = 0;
+  for (i32 square = 0; square < 64; square++) {
+    if (squares_[square] != -1) {
+      hash ^= zobristKeys.pieces[squares_[square]][square];
+    }
+  }
+  if (C & BLACK) hash ^= zobristKeys.side;
+  hash ^= zobristKeys.castle[extras_[turn_].castlingRights];
+  if (extras_[turn_].passantSq) {
+    constexpr u64 direction = (C == WHITE) ? -8 : 8;
+    u64 pushedPos = 1ULL << (extras_[turn_].passantSq + direction);
+    u64 adjacentMask = ((pushedPos & 0xfefefefefefefefeULL) >> 1) | ((pushedPos & 0x7f7f7f7f7f7f7f7fULL) << 1);
+    if (adjacentMask & pieces_[C * 6]) {
+      hash ^= zobristKeys.enPassantFile[extras_[turn_].passantSq & 7];
+    }
+  }
+  return hash;
+}
+
+template u64 Board::getZobristHash<WHITE>();
+template u64 Board::getZobristHash<BLACK>();

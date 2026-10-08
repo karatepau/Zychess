@@ -112,6 +112,8 @@ void Board::fenLoader(const std::vector<std::string>& fen) {
   if (fen[4].find('k') != std::string::npos) e.castlingRights |= BLACK_OO;
   if (fen[4].find('q') != std::string::npos) e.castlingRights |= BLACK_OOO;
   e.passantSq = (fen[5] == "-") ? 0 : sqToIndex(fen[5]);
+  if (turn_ & 1) extras_[turn_].zobristHash = getZobristHash<BLACK>();
+  else extras_[turn_].zobristHash = getZobristHash<WHITE>();
 }
 
 
@@ -180,5 +182,6 @@ void uci (const std::string& command, Board& board) {
   }
   else if (parameters[0] == "ucinewgame") {
     board.reset();
+    std::fill(tt.begin(), tt.end(), TT{});
   }
 }

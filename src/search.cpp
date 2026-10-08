@@ -86,19 +86,75 @@ i32 qSearch(Board& board, i32 alpha, i32 beta) {
   return alpha;
 }
 
+void storeBoardZobristHash(const u64& hash, const i32& depth, const i32& score, const u8& type, const u16& bestMove, const u16& ply) {
+  tt[hash & 0xfffff].zobristHash = hash;
+  tt[hash & 0xfffff].depth = depth;
+  tt[hash & 0xfffff].scoreType = type;
+  tt[hash & 0xfffff].bestMove = bestMove;
+  if (score >= INF - 1000) {
+    tt[hash & 0xfffff].score = score + ply;
+  }
+  else if (score <= -INF + 1000) {
+    tt[hash & 0xfffff].score = score - ply;
+  }
+  else {
+    tt[hash & 0xfffff].score = score;
+  }
+}
+
+bool isRepetition(const Board& board) {
+  const u64 hash = board.extras_[board.turn_].zobristHash;
+  for (i32 i = static_cast<i32>(board.turn_) - 2; i >= 0; i -= 2) {
+    if (board.extras_[i].zobristHash == hash) return true;
+  }
+  return false;
+}
+
 template<Color C>
 i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
   if (searchState.stop) return 0;
+  if (allowNullMove && isRepetition(board)) return 0;
   if ((searchState.nodes & 2047) == 0 && searchState.timeLimit && searchState.timeElapsed() >= searchState.timeLimit) {
     searchState.stop = true;
     return 0;
   }
   if (depth == 0) return qSearch<C>(board, alpha, beta);
   searchState.nodes++;
+  const u64 hash = board.extras_[board.turn_].zobristHash;
+  u16 bestMove = 0;
+  if (tt[hash & 0xfffff].zobristHash == hash) {
+    const TT& entry = tt[hash & 0xfffff];
+    if (entry.depth >= depth) {
+      i32 ttScore = entry.score;
+      if (ttScore >= INF - 1000) ttScore -= board.turn_;
+      else if (ttScore <= -INF + 1000) ttScore += board.turn_;
+      switch (entry.scoreType) {
+        case EXACT:
+          return ttScore;
+        case LOWER:
+          if (ttScore >= beta) return beta;
+          break;
+        case UPPER:
+          if (ttScore <= alpha) return alpha;
+          break;
+      }
+    }
+    bestMove = tt[hash & 0xfffff].bestMove;
+  }
+  i32 originalAlpha = alpha;
   constexpr u8 offset = C * 6;
   u64 inCheck = board.getAttackers<C ^ 1>(__builtin_ctzll(board.pieces_[WK + offset]));
   if (allowNullMove && depth >= 3 && !inCheck && (board.pieces_[WN + offset] | board.pieces_[WB + offset] | board.pieces_[WR + offset] | board.pieces_[WQ + offset])) {
     board.extras_[board.turn_ + 1] = board.extras_[board.turn_];
+    if (u8& passantSq = board.extras_[board.turn_].passantSq) {
+      constexpr u64 direction = (C == WHITE) ? -8 : 8;
+      u64 pushedPos = 1ULL << (passantSq + direction);
+      u64 adjacentMask = ((pushedPos & 0xfefefefefefefefeULL) >> 1) | ((pushedPos & 0x7f7f7f7f7f7f7f7fULL) << 1);
+      if (adjacentMask & board.pieces_[C * 6]) {
+        board.extras_[board.turn_ + 1].zobristHash ^= zobristKeys.enPassantFile[passantSq & 7];
+      }
+    }
+    board.extras_[board.turn_ + 1].zobristHash ^= zobristKeys.side;
     board.extras_[board.turn_ + 1].passantSq = 0;
     board.turn_++;
     i32 nullMoveScore = -negaMax<C ^ 1>(board, -beta, -beta + 1, depth - 3, false);
@@ -109,6 +165,14 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
   MoveList moves = board.getMoves<C>();
   i32 legal = 0;
   std::array<i32, 218> movesEval = valueMoves<C>(board, moves);
+  if (bestMove) {
+    for (i32 i = 0; i < moves.count; i++) {
+      if (bestMove == moves.data[i]) {
+        movesEval[i] = INF;
+        break;
+      }
+    }
+  }
   for (i32 i = 0; i < moves.count; i++) {
     promoteBestMove(i, moves, movesEval);
     board.makeMove<C>(moves.data[i]);
@@ -117,15 +181,29 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
       continue;
     }
     legal++;
-    i32 score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, allowNullMove);
+    i32 score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true);
     board.unmakeMove<C>();
     if (searchState.stop) return 0;
-    if (score >= beta) return beta;
-    if (score > alpha) alpha = score;
+    if (score >= beta) {
+      storeBoardZobristHash(hash, depth, beta, LOWER, moves.data[i], board.turn_);
+      return beta;
+    }
+    if (score > alpha) {
+      bestMove = moves.data[i];
+      alpha = score;
+    }
   }
   if (legal == 0) {
-    if (inCheck) return -INF + board.turn_;
+    if (inCheck) {
+      return -INF + board.turn_;
+    }
     return 0;
+  }
+  if (originalAlpha >= alpha) {
+    storeBoardZobristHash(hash, depth, alpha, UPPER, bestMove, board.turn_);
+  }
+  else {
+    storeBoardZobristHash(hash, depth, alpha, EXACT, bestMove, board.turn_);
   }
   return alpha;
 }

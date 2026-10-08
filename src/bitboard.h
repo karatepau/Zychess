@@ -14,6 +14,7 @@
 #include <iostream>
 #include <string>
 #include <sstream>
+#include <random>
 
 using i8  = std::int8_t;
 using u8  = std::uint8_t;
@@ -42,11 +43,33 @@ enum CastlingRights : u8 {
   BLACK_OOO = 8
 };
 
+enum {
+  EXACT = 0,
+  LOWER,
+  UPPER,
+};
+
+struct ZobristKeys {
+  std::array<std::array<u64, 64>, 12> pieces;
+  u64 side;
+  std::array<u64, 16> castle;
+  std::array<u64, 8> enPassantFile;
+};
+
+struct TT {
+  u64 zobristHash;
+  u8 depth;
+  i32 score;
+  u16 bestMove;
+  u8 scoreType;
+};
+
 struct Extras {
   u16 movement;
   u8 passantSq;
   u8 castlingRights;
   i8 capturedPiece;
+  u64 zobristHash;
 };
 
 struct MoveTables {
@@ -86,6 +109,10 @@ class Board {
     u64 getAttacks() const;
     template<Color C>
     void updateBoard(u8 piece, u8 destination, u64 oriMask, u64 destMask, u8 passantSq, u8 castlingRights);
+    template<Color C>
+    void updateZobristHash();
+    template<Color C>
+    u64 getZobristHash();
     void reset() {
       pieces_.fill(0);
       occupancies_.fill(0);
@@ -100,3 +127,5 @@ extern const std::array<u64, 64> kMsk;
 extern const std::array<u64, 64> bMsk;
 extern const std::array<u64, 64> rMsk;
 extern const MoveTables t;
+extern const ZobristKeys zobristKeys;
+inline std::vector<TT> tt(0x100000);

@@ -237,11 +237,6 @@ MoveList Board::getNoQuietMoves() const {
 }
 
 template<Color C>
-u64 Board::isCheck() const {
-  return getAttacks<C ^ 1>() & pieces_[WK + C * 6];
-}
-
-template<Color C>
 void Board::updateBoard(u8 piece, u8 destination, u64 oriMask, u64 destMask, u8 passantSq, u8 castlingRights) {
   squares_[destination] = piece;
   pieces_[piece] |= destMask;
@@ -278,7 +273,21 @@ void Board::makeMove(u16 movement) {
   u64 destMask = 1ULL << destination;
   i8 captured = squares_[destination];
   u8 rights = extras_[turn_].castlingRights & castleKeep(origin) & castleKeep(destination);
- 
+  extras_[turn_].zobristHash = extras_[turn_-1].zobristHash;
+  extras_[turn_].zobristHash ^= zobristKeys.castle[extras_[turn_-1].castlingRights];
+  extras_[turn_].zobristHash ^= zobristKeys.castle[rights];
+  extras_[turn_].zobristHash ^= zobristKeys.side;
+  extras_[turn_].zobristHash ^= zobristKeys.pieces[piece][origin];
+  extras_[turn_].zobristHash ^= zobristKeys.pieces[piece][destination];
+
+  if (extras_[turn_].passantSq) {
+    constexpr u64 direction = (C == WHITE) ? -8 : 8;
+    u64 pushedPos = 1ULL << (extras_[turn_].passantSq + direction);
+    u64 adjacentMask = ((pushedPos & 0xfefefefefefefefeULL) >> 1) | ((pushedPos & 0x7f7f7f7f7f7f7f7fULL) << 1);
+    if (adjacentMask & pieces_[C * 6]) {
+      extras_[turn_].zobristHash ^= zobristKeys.enPassantFile[extras_[turn_].passantSq & 7];
+    }
+  }
   if (flag == 9) {
     u8 capSq = C == WHITE ? destination - 8 : destination + 8;
     u64 c = 1ULL << capSq;
@@ -287,8 +296,10 @@ void Board::makeMove(u16 movement) {
     pieces_[captured] ^= c;
     occupancies_[E] ^= c;
     occupancies_[BOTH] ^= c;
+    extras_[turn_].zobristHash ^= zobristKeys.pieces[captured][capSq];
   }
   else if (captured != -1) {
+    extras_[turn_].zobristHash ^= zobristKeys.pieces[captured][destination];
     pieces_[captured] ^= destMask;
     occupancies_[E] ^= destMask;
   }
@@ -298,8 +309,18 @@ void Board::makeMove(u16 movement) {
  
   u8 placed = piece;
   u8 passant = 0;
-  if (flag >= 1 && flag <= 4) placed = flag + C * 6;
-  else if (flag == 5) passant = (origin + destination) / 2;
+  if (flag >= 1 && flag <= 4) {
+    placed = flag + C * 6;
+    extras_[turn_].zobristHash ^= zobristKeys.pieces[piece][destination];
+    extras_[turn_].zobristHash ^= zobristKeys.pieces[flag + C * 6][destination];
+  }
+  else if (flag == 5) {
+    passant = (origin + destination) / 2;
+    u64 adjacentMask = ((destMask & 0xfefefefefefefefeULL) >> 1) | ((destMask & 0x7f7f7f7f7f7f7f7fULL) << 1);
+    if (adjacentMask & pieces_[E * 6]) {
+      extras_[turn_].zobristHash ^= zobristKeys.enPassantFile[passant & 7];
+    }
+  }
   updateBoard<C>(placed, destination, oriMask, destMask, passant, rights);
  
   if (flag == 6) {
@@ -316,6 +337,8 @@ void Board::makeMove(u16 movement) {
     u64 rm = (1ULL << from) | (1ULL << to);
     squares_[from] = -1;
     squares_[to] = WR + C * 6;
+    extras_[turn_].zobristHash ^= zobristKeys.pieces[WR + C * 6][from];
+    extras_[turn_].zobristHash ^= zobristKeys.pieces[WR + C * 6][to];
     pieces_[WR + C * 6] ^= rm;
     occupancies_[C] ^= rm;
     occupancies_[BOTH] ^= rm;
