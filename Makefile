@@ -1,9 +1,10 @@
-CXX      = g++
+CXX     ?= g++
 CXXFLAGS = -std=c++20 -O3 -mbmi2 -MMD -MP
 SRC      = $(wildcard src/*.cpp)
 OBJ      = $(SRC:src/%.cpp=build/%.o)
+TARGET ?= zychess
 
-zychess: $(OBJ)
+$(TARGET): $(OBJ)
 	$(CXX) $(OBJ) -o $@
 
 build/%.o: src/%.cpp
@@ -13,4 +14,4 @@ build/%.o: src/%.cpp
 -include $(OBJ:.o=.d)
 
 clean:
-	rm -rf build zychess
+	rm -rf build zychess zychess.exe

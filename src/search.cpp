@@ -118,6 +118,7 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
     searchState.stop = true;
     return 0;
   }
+  if (board.extras_[board.turn_].fiftyMovesRule >= 100) return 0;
   if (depth == 0) return qSearch<C>(board, alpha, beta);
   searchState.nodes++;
   const u64 hash = board.extras_[board.turn_].zobristHash;

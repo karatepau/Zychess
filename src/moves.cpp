@@ -279,7 +279,8 @@ void Board::makeMove(u16 movement) {
   extras_[turn_].zobristHash ^= zobristKeys.side;
   extras_[turn_].zobristHash ^= zobristKeys.pieces[piece][origin];
   extras_[turn_].zobristHash ^= zobristKeys.pieces[piece][destination];
-
+  if (piece == C * 6 || captured!=-1) extras_[turn_].fiftyMovesRule = 0;
+  else extras_[turn_].fiftyMovesRule++;
   if (extras_[turn_].passantSq) {
     constexpr u64 direction = (C == WHITE) ? -8 : 8;
     u64 pushedPos = 1ULL << (extras_[turn_].passantSq + direction);
