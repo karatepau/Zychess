@@ -70,6 +70,7 @@ struct Extras {
   u8 castlingRights;
   i8 capturedPiece;
   u64 zobristHash;
+  u16 fiftyMovesRule;
 };
 
 struct MoveTables {
