@@ -111,7 +111,7 @@ bool isRepetition(const Board& board) {
 }
 
 template<Color C>
-i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
+i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove, bool isPv) {
   if (searchState.stop) return 0;
   if (allowNullMove && isRepetition(board)) return 0;
   if ((searchState.nodes & 2047) == 0 && searchState.timeLimit && searchState.timeElapsed() >= searchState.timeLimit) {
@@ -158,13 +158,15 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
     board.extras_[board.turn_ + 1].zobristHash ^= zobristKeys.side;
     board.extras_[board.turn_ + 1].passantSq = 0;
     board.turn_++;
-    i32 nullMoveScore = -negaMax<C ^ 1>(board, -beta, -beta + 1, depth - 3, false);
+    i32 nullMoveScore = -negaMax<C ^ 1>(board, -beta, -beta + 1, depth - 3, false, false);
     board.turn_--;
     if (searchState.stop) return 0;
     if (nullMoveScore >= beta) return beta;
   }
   MoveList moves = board.getMoves<C>();
   i32 legal = 0;
+  i32 score = -INF;
+  bool firstMove = true;
   std::array<i32, 218> movesEval = valueMoves<C>(board, moves);
   if (bestMove) {
     for (i32 i = 0; i < moves.count; i++) {
@@ -182,7 +184,17 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
       continue;
     }
     legal++;
-    i32 score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true);
+    //i32 score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true);
+    if (isPv && firstMove) {
+      score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true, true);
+    }
+    else {
+      score = -negaMax<C ^ 1>(board, -alpha - 1, -alpha, depth - 1, true, false);
+      if (score > alpha && score < beta) {
+        score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true, isPv);
+      }
+    }
+    firstMove = false;
     board.unmakeMove<C>();
     if (searchState.stop) return 0;
     if (score >= beta) {
@@ -211,6 +223,7 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove) {
 
 template<Color C>
 u16 getBestMove(Board& board, i32 depth, u16 bestMove) {
+  bool isPv = true;
   searchState.stop = false;
   constexpr u8 offset = C * 6;
   MoveList moves = board.getMoves<C>();
@@ -232,7 +245,8 @@ u16 getBestMove(Board& board, i32 depth, u16 bestMove) {
       board.unmakeMove<C>();
       continue;
     }
-    i32 score = -negaMax<C ^ 1>(board, -INF, -alpha, depth - 1, true);
+    i32 score = -negaMax<C ^ 1>(board, -INF, -alpha, depth - 1, true, isPv);
+    isPv = false;
     board.unmakeMove<C>();
     if (score > alpha) {
       alpha = score;
