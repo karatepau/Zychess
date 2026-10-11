@@ -1,0 +1,10 @@
+#!/bin/bash
+
+cutechess-cli \
+  -engine name="New" cmd="../zychessNew" proto=uci \
+  -engine name="Old" cmd="../zychess" proto=uci \
+  -each tc=10+0.1 \
+  -openings file="8moves_v3.pgn" format=pgn order=random \
+  -rounds 200 \
+  -pgnout file="results.pgn"
+
