@@ -286,6 +286,9 @@ u16 iDeeping (Board& board) {
       scoreStr = "cp " + std::to_string(searchState.score);
     }
     std::cout << "info depth " << i << " score " << scoreStr << " nodes " << searchState.nodes << " nps " << nps << " time " << ms << " pv " << moveToUCI(bestMove) << '\n';
+    if (ms*3>=searchState.timeLimit) {
+      break;
+    }
   }
   searchState.timeLimit = 0;
   searchState.nodes = 0;

@@ -6,5 +6,5 @@ cutechess-cli \
   -each tc=10+0.1 \
   -openings file="8moves_v3.pgn" format=pgn order=random \
   -rounds 200 \
-  -concurrency 4 \
+  -concurrency 8 \
   -pgnout file="results.pgn"
