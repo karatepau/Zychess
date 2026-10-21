@@ -26,4 +26,4 @@ inline constexpr std::array<std::array<i32, 7>, 7> MVV_LVA = {{
 
 u16 iDeeping (Board& board);
 template<Color C>
-u16 getBestMove(Board& board, i32 depth, u16 bestMove);
+u16 getBestMove(Board& board, i32 depth, u16 bestMove, i32 alpha, i32 beta);

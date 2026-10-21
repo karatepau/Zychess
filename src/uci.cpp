@@ -149,8 +149,8 @@ void uci (const std::string& command, Board& board) {
     if (parameters.size() > 2 && parameters[1] == "depth") {
       i32 depth = std::stoi(parameters[2]);
       u16 bestMove;
-      if (board.turn_ & 1) {bestMove = getBestMove<BLACK>(board, depth, 0);}
-      else {bestMove = getBestMove<WHITE>(board, depth, 0);}
+      if (board.turn_ & 1) {bestMove = getBestMove<BLACK>(board, depth, 0, INF + 1000, -INF - 1000);}
+      else {bestMove = getBestMove<WHITE>(board, depth, 0, INF + 1000, -INF - 1000);}
       std::cout << "bestmove " << moveToUCI(bestMove) << '\n';
     }
     else {

@@ -87,24 +87,24 @@ i32 qSearch(Board& board, i32 alpha, i32 beta) {
 }
 
 void storeBoardZobristHash(const u64& hash, const i32& depth, const i32& score, const u8& type, const u16& bestMove, const u16& ply) {
-  tt[hash & 0xfffff].zobristHash = hash;
-  tt[hash & 0xfffff].depth = depth;
-  tt[hash & 0xfffff].scoreType = type;
-  tt[hash & 0xfffff].bestMove = bestMove;
+  tt[hash & TTMASK].zobristHash = hash;
+  tt[hash & TTMASK].depth = depth;
+  tt[hash & TTMASK].scoreType = type;
+  tt[hash & TTMASK].bestMove = bestMove;
   if (score >= INF - 1000) {
-    tt[hash & 0xfffff].score = score + ply;
+    tt[hash & TTMASK].score = score + ply;
   }
   else if (score <= -INF + 1000) {
-    tt[hash & 0xfffff].score = score - ply;
+    tt[hash & TTMASK].score = score - ply;
   }
   else {
-    tt[hash & 0xfffff].score = score;
+    tt[hash & TTMASK].score = score;
   }
 }
 
 bool isRepetition(const Board& board) {
   const u64 hash = board.extras_[board.turn_].zobristHash;
-  for (i32 i = static_cast<i32>(board.turn_) - 2; i >= 0; i -= 2) {
+  for (i32 i = static_cast<i32>(board.extras_[board.turn_].fiftyMovesRule) - 2; i >= 0; i -= 2) {
     if (board.extras_[i].zobristHash == hash) return true;
   }
   return false;
@@ -123,8 +123,8 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove, bo
   searchState.nodes++;
   const u64 hash = board.extras_[board.turn_].zobristHash;
   u16 bestMove = 0;
-  if (tt[hash & 0xfffff].zobristHash == hash) {
-    const TT& entry = tt[hash & 0xfffff];
+  if (tt[hash & TTMASK].zobristHash == hash) {
+    const TT& entry = tt[hash & TTMASK];
     if (entry.depth >= depth) {
       i32 ttScore = entry.score;
       if (ttScore >= INF - 1000) ttScore -= board.turn_;
@@ -140,7 +140,7 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove, bo
           break;
       }
     }
-    bestMove = tt[hash & 0xfffff].bestMove;
+    bestMove = tt[hash & TTMASK].bestMove;
   }
   i32 originalAlpha = alpha;
   constexpr u8 offset = C * 6;
@@ -184,7 +184,6 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove, bo
       continue;
     }
     legal++;
-    //i32 score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true);
     if (isPv && firstMove) {
       score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true, true);
     }
@@ -212,22 +211,23 @@ i32 negaMax(Board& board, i32 alpha, i32 beta, i32 depth, bool allowNullMove, bo
     }
     return 0;
   }
-  if (originalAlpha >= alpha) {
-    storeBoardZobristHash(hash, depth, alpha, UPPER, bestMove, board.turn_);
-  }
-  else {
-    storeBoardZobristHash(hash, depth, alpha, EXACT, bestMove, board.turn_);
+  if (tt[hash & TTMASK].zobristHash != hash || tt[hash & TTMASK].depth < depth) {
+    if (originalAlpha >= alpha) {
+      storeBoardZobristHash(hash, depth, alpha, UPPER, bestMove, board.turn_);
+    }
+    else {
+      storeBoardZobristHash(hash, depth, alpha, EXACT, bestMove, board.turn_);
+    }
   }
   return alpha;
 }
 
 template<Color C>
-u16 getBestMove(Board& board, i32 depth, u16 bestMove) {
+u16 getBestMove(Board& board, i32 depth, u16 bestMove, i32 alpha, i32 beta) {
   bool isPv = true;
-  searchState.stop = false;
+  i32 bestScore = -INF - 1000;
   constexpr u8 offset = C * 6;
   MoveList moves = board.getMoves<C>();
-  i32 alpha = -INF -1000;
   std::array<i32, 218> movesEval = valueMoves<C>(board, moves);
   if (bestMove) {
     for (i32 i = 0; i < moves.count; i++) {
@@ -245,31 +245,58 @@ u16 getBestMove(Board& board, i32 depth, u16 bestMove) {
       board.unmakeMove<C>();
       continue;
     }
-    i32 score = -negaMax<C ^ 1>(board, -INF, -alpha, depth - 1, true, isPv);
+    i32 score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true, isPv);
     isPv = false;
     board.unmakeMove<C>();
-    if (score > alpha) {
-      alpha = score;
+    if (score >= beta) {
+      searchState.score = score;
+      return moves.data[i];
+    }
+    if (score > bestScore) {
+      bestScore = score;
       bestMove = moves.data[i];
     }
+    if (score > alpha) {
+      alpha = score;
+    }
   }
-  searchState.score = alpha;
+  searchState.score = bestScore;
   return bestMove;
 }
 
 u16 iDeeping (Board& board) {
+  searchState.stop = false;
   u16 bestMove = 0;
-  for (i32 i = 1; i < 16; i++) {
-    u16 move = 0;
-    if (board.turn_ & BLACK) {
-      move = getBestMove<BLACK>(board, i, bestMove);
+  i32 previousScore = 0;
+  for (i32 depth = 1; depth < 16; depth++) {
+    i32 betaDelta = 125;
+    i32 alphaDelta = 125;
+    i32 alpha = (depth == 1) ? -INF - 1000 : previousScore - alphaDelta;
+    i32 beta  = (depth == 1) ?  INF + 1000 : previousScore + betaDelta;
+    u16 move = bestMove;
+    while (!searchState.stop) {
+      if (board.turn_ & BLACK) {
+        move = getBestMove<BLACK>(board, depth, bestMove, alpha, beta);
+      } else {
+        move = getBestMove<WHITE>(board, depth, bestMove, alpha, beta);
+      }
+      if (searchState.stop) break;
+      const i32 score = searchState.score;
+      if (score <= alpha) {
+        alphaDelta *= 2;
+        alpha = previousScore - alphaDelta;
+      }
+      else if (score >= beta) {
+        betaDelta *= 2;
+        beta = previousScore + betaDelta;
+      }
+      else {
+        previousScore = score;
+        bestMove = move;
+        break;
+      }
     }
-    else {
-      move = getBestMove<WHITE>(board, i, bestMove);
-    }
-    if (searchState.stop) {
-      break;
-    }
+    if (searchState.stop) break;
     bestMove = move;
     i64 ms = std::max<i64>(1, searchState.timeElapsed());
     u64 nps = searchState.nodes * 1000 / ms;
@@ -285,7 +312,7 @@ u16 iDeeping (Board& board) {
     else {
       scoreStr = "cp " + std::to_string(searchState.score);
     }
-    std::cout << "info depth " << i << " score " << scoreStr << " nodes " << searchState.nodes << " nps " << nps << " time " << ms << " pv " << moveToUCI(bestMove) << '\n';
+    std::cout << "info depth " << depth << " score " << scoreStr << " nodes " << searchState.nodes << " nps " << nps << " time " << ms << " pv " << moveToUCI(bestMove) << '\n';
     if (ms*3>=searchState.timeLimit) {
       break;
     }
@@ -295,5 +322,5 @@ u16 iDeeping (Board& board) {
   return bestMove;
 }
 
-template u16 getBestMove<WHITE>(Board& board, i32 depth, u16 bestMove);
-template u16 getBestMove<BLACK>(Board& board, i32 depth, u16 bestMove);
+template u16 getBestMove<WHITE>(Board&, i32, u16, i32, i32);
+template u16 getBestMove<BLACK>(Board&, i32, u16, i32, i32);
