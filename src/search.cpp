@@ -245,7 +245,16 @@ u16 getBestMove(Board& board, i32 depth, u16 bestMove, i32 alpha, i32 beta) {
       board.unmakeMove<C>();
       continue;
     }
-    i32 score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true, isPv);
+    i32 score;
+    if (isPv) {
+      score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true, true);
+    }
+    else {
+      score = -negaMax<C ^ 1>(board, -alpha - 1, -alpha, depth - 1, true, false);
+      if (score > alpha && score < beta) {
+        score = -negaMax<C ^ 1>(board, -beta, -alpha, depth - 1, true, false);
+      }
+    }
     isPv = false;
     board.unmakeMove<C>();
     if (score >= beta) {
