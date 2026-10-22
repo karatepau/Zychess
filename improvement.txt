@@ -1,22 +1,22 @@
-Score of New vs Old: 48 - 32 - 120  [0.540] 200
-...      New playing White: 28 - 11 - 61  [0.585] 100
-...      New playing Black: 20 - 21 - 59  [0.495] 100
-...      White vs Black: 49 - 31 - 120  [0.545] 200
-Elo difference: 27.9 +/- 30.4, LOS: 96.3 %, DrawRatio: 60.0 %
+Score of New vs Old: 57 - 27 - 116  [0.575] 200
+...      New playing White: 30 - 13 - 57  [0.585] 100
+...      New playing Black: 27 - 14 - 59  [0.565] 100
+...      White vs Black: 44 - 40 - 116  [0.510] 200
+Elo difference: 52.5 +/- 31.1, LOS: 99.9 %, DrawRatio: 58.0 %
 SPRT: llr 0 (0.0%), lbound -inf, ubound inf
 
 Player: New
-   "Draw by 3-fold repetition": 118
+   "Draw by 3-fold repetition": 114
    "Draw by insufficient mating material": 2
-   "Loss: Black mates": 11
-   "Loss: White mates": 21
-   "Win: Black mates": 20
-   "Win: White mates": 28
+   "Loss: Black mates": 13
+   "Loss: White mates": 14
+   "Win: Black mates": 27
+   "Win: White mates": 30
 Player: Old
-   "Draw by 3-fold repetition": 118
+   "Draw by 3-fold repetition": 114
    "Draw by insufficient mating material": 2
-   "Loss: Black mates": 20
-   "Loss: White mates": 28
-   "Win: Black mates": 11
-   "Win: White mates": 21
+   "Loss: Black mates": 27
+   "Loss: White mates": 30
+   "Win: Black mates": 13
+   "Win: White mates": 14
 Finished match
