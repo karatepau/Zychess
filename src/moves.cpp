@@ -101,30 +101,33 @@ void pawnNoQuietMoves(u64 pieces, u64 empty, u64 enemies, u16*& ptr, u64 passant
   }
 }
 
-void knightQuietMoves(u64 pieces, u64 both, u16*& ptr) {
+void knightQuietMoves(u64 pieces, u64 both, u16*& ptr, u64 checkMask = 0xffffffffffffffffULL) {
   while (pieces) {
     u8 origin = __builtin_ctzll(pieces);
     u64 legalMoves = nMsk[origin] & ~both;
+    legalMoves &= checkMask;
     moves(legalMoves, origin, ptr);
     POPLSB(pieces);
   }
 }
 
-void bishopQuietMoves(u64 pieces, u64 both, u16*& ptr) {
+void bishopQuietMoves(u64 pieces, u64 both, u16*& ptr, u64 checkMask = 0xffffffffffffffffULL) {
   while (pieces) {
     u8 origin = __builtin_ctzll(pieces);
     u64 legalMoves = t.bishop[origin][_pext_u64(both, bMsk[origin])];
     legalMoves &= ~both;
+    legalMoves &= checkMask;
     moves(legalMoves, origin, ptr);
     POPLSB(pieces);
   }
 }
 
-void rookQuietMoves(u64 pieces, u64 both, u16*& ptr) {
+void rookQuietMoves(u64 pieces, u64 both, u16*& ptr, u64 checkMask = 0xffffffffffffffffULL) {
   while (pieces) {
     u8 origin = __builtin_ctzll(pieces);
     u64 legalMoves = t.rook[origin][_pext_u64(both, rMsk[origin])];
     legalMoves &= ~both;
+    legalMoves &= checkMask;
     moves(legalMoves, origin, ptr);
     POPLSB(pieces);
   }
@@ -172,23 +175,25 @@ void kingQuietMoves(const Board& board, u16*& ptr) {
 }
 
 template<Color C>
-void pawnQuietMoves(u64 pieces, u64 both, u64 enemies, u16*& ptr) {
+void pawnQuietMoves(u64 pieces, u64 both, u64 enemies, u16*& ptr, u64 checkMask = 0xffffffffffffffffULL) {
   u64 empty = ~both;
   u64 legalMoves;
   if constexpr (C == WHITE) {  
     legalMoves = (pieces << 8) & empty & ~0xff00000000000000ULL;
+    legalMoves &= checkMask;
     pawnMove(legalMoves, 0, ptr, -8);
     legalMoves = ((((pieces & 0xff00ULL) << 8) & empty) << 8) & empty;
+    legalMoves &= checkMask;
     pawnMove(legalMoves, 5, ptr, -16);
-    legalMoves = ((pieces & 0xfefefefefefefefeULL) << 7) & enemies;
   }
 
   else {
     legalMoves = (pieces >> 8) & empty & ~0xffULL;
+    legalMoves &= checkMask;
     pawnMove(legalMoves, 0, ptr, 8);
     legalMoves = ((((pieces & 0xff000000000000ULL) >> 8) & empty) >> 8) & empty;
+    legalMoves &= checkMask;
     pawnMove(legalMoves, 5, ptr, 16);
-    legalMoves = ((pieces & 0x7f7f7f7f7f7f7f7fULL) >> 7) & enemies;
   }
 }
 
@@ -198,20 +203,57 @@ MoveList Board::getMoves() const {
   u16* ptr = moves.data.data();
   constexpr u8 offset = C * 6;
   constexpr Color enemy = C ^ 1;
-  if (std::popcount(getAttackers<C ^ 1>(__builtin_ctzll(pieces_[WK + offset]))) < 2) {
-    pawnNoQuietMoves<C>(pieces_[WP + offset], ~occupancies_[BOTH], occupancies_[enemy], ptr, 1ULL << extras_[turn_].passantSq);
-    knightCaptures(pieces_[WN + offset], occupancies_[enemy], ptr);
-    bishopCaptures(pieces_[WB + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
-    rookCaptures(pieces_[WR + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
-    bishopCaptures(pieces_[WQ + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
-    rookCaptures(pieces_[WQ + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+  constexpr Color enemyOffset = enemy * 6;
+  u64 kingAttackers = getAttackers<C ^ 1>(__builtin_ctzll(pieces_[WK + offset]));
+  u64 enemyKnight = pieces_[WN + enemyOffset];
+  if (std::popcount(kingAttackers) < 2) [[likely]] {
+    if (u64 dangerousKnight = kingAttackers & enemyKnight) [[unlikely]] {
+      pawnNoQuietMoves<C>(pieces_[WP + offset], ~occupancies_[BOTH], dangerousKnight, ptr, 0);
+      knightCaptures(pieces_[WN + offset], dangerousKnight, ptr);
+      bishopCaptures(pieces_[WB + offset], dangerousKnight, occupancies_[BOTH], ptr);
+      rookCaptures(pieces_[WR + offset], dangerousKnight, occupancies_[BOTH], ptr);
+      bishopCaptures(pieces_[WQ + offset], dangerousKnight, occupancies_[BOTH], ptr);
+      rookCaptures(pieces_[WQ + offset], dangerousKnight, occupancies_[BOTH], ptr);
+    }
+    else if (kingAttackers) [[unlikely]] {
+      u16 kingSquare = __builtin_ctzll(pieces_[WK + offset]);
+      u16 kingAttackerSquare = __builtin_ctzll(kingAttackers);
+      u64 kingRays =
+        t.bishop[kingSquare][_pext_u64(occupancies_[BOTH], bMsk[kingSquare])]
+        | t.rook[kingSquare][_pext_u64(occupancies_[BOTH], rMsk[kingSquare])];
+      u64 attackerRays =
+        t.bishop[kingAttackerSquare][_pext_u64(occupancies_[BOTH], bMsk[kingAttackerSquare])]
+        | t.rook[kingAttackerSquare][_pext_u64(occupancies_[BOTH], rMsk[kingAttackerSquare])];
+      u64 checkMask = kingRays & attackerRays;
+      pawnNoQuietMoves<C>(pieces_[WP + offset], ~occupancies_[BOTH], occupancies_[enemy], ptr, 1ULL << extras_[turn_].passantSq);
+      knightCaptures(pieces_[WN + offset], kingAttackers, ptr);
+      bishopCaptures(pieces_[WB + offset], kingAttackers, occupancies_[BOTH], ptr);
+      rookCaptures(pieces_[WR + offset], kingAttackers, occupancies_[BOTH], ptr);
+      bishopCaptures(pieces_[WQ + offset], kingAttackers, occupancies_[BOTH], ptr);
+      rookCaptures(pieces_[WQ + offset], kingAttackers, occupancies_[BOTH], ptr);
 
-    bishopQuietMoves(pieces_[WQ + offset], occupancies_[BOTH], ptr);
-    rookQuietMoves(pieces_[WQ + offset], occupancies_[BOTH], ptr);
-    rookQuietMoves(pieces_[WR + offset], occupancies_[BOTH], ptr);
-    bishopQuietMoves(pieces_[WB + offset], occupancies_[BOTH], ptr);
-    knightQuietMoves(pieces_[WN + offset], occupancies_[BOTH], ptr);
-    pawnQuietMoves<C>(pieces_[WP + offset], occupancies_[BOTH], occupancies_[enemy], ptr);
+      bishopQuietMoves(pieces_[WQ + offset], occupancies_[BOTH], ptr, checkMask);
+      rookQuietMoves(pieces_[WQ + offset], occupancies_[BOTH], ptr, checkMask);
+      rookQuietMoves(pieces_[WR + offset], occupancies_[BOTH], ptr, checkMask);
+      bishopQuietMoves(pieces_[WB + offset], occupancies_[BOTH], ptr, checkMask);
+      knightQuietMoves(pieces_[WN + offset], occupancies_[BOTH], ptr, checkMask);
+      pawnQuietMoves<C>(pieces_[WP + offset], occupancies_[BOTH], occupancies_[enemy], ptr, checkMask);
+    }
+    else {
+      pawnNoQuietMoves<C>(pieces_[WP + offset], ~occupancies_[BOTH], occupancies_[enemy], ptr, 1ULL << extras_[turn_].passantSq);
+      knightCaptures(pieces_[WN + offset], occupancies_[enemy], ptr);
+      bishopCaptures(pieces_[WB + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+      rookCaptures(pieces_[WR + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+      bishopCaptures(pieces_[WQ + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+      rookCaptures(pieces_[WQ + offset], occupancies_[enemy], occupancies_[BOTH], ptr);
+
+      bishopQuietMoves(pieces_[WQ + offset], occupancies_[BOTH], ptr);
+      rookQuietMoves(pieces_[WQ + offset], occupancies_[BOTH], ptr);
+      rookQuietMoves(pieces_[WR + offset], occupancies_[BOTH], ptr);
+      bishopQuietMoves(pieces_[WB + offset], occupancies_[BOTH], ptr);
+      knightQuietMoves(pieces_[WN + offset], occupancies_[BOTH], ptr);
+      pawnQuietMoves<C>(pieces_[WP + offset], occupancies_[BOTH], occupancies_[enemy], ptr);
+    }
   }
   kingNoQuietMoves<C>(*this, ptr);
   kingQuietMoves<C>(*this, ptr);
