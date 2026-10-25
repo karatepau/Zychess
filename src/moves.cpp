@@ -2,12 +2,12 @@
 #include "moves.h"
 
 template<Color C>
-u64 Board::getAttackers(u8 square) const {
+u64 Board::getAttackers(u8 square, u64 occupancy) const {
   constexpr u8 offset = C * 6;
-  u64 mask = t.bishop[square][_pext_u64(occupancies_[BOTH], bMsk[square])] & pieces_[WB + offset];
-  mask |= t.rook[square][_pext_u64(occupancies_[BOTH], rMsk[square])] & pieces_[WR + offset];
-  mask |= t.bishop[square][_pext_u64(occupancies_[BOTH], bMsk[square])] & pieces_[WQ + offset];
-  mask |= t.rook[square][_pext_u64(occupancies_[BOTH], rMsk[square])] & pieces_[WQ + offset];
+  u64 mask = t.bishop[square][_pext_u64(occupancy, bMsk[square])] & pieces_[WB + offset];
+  mask |= t.rook[square][_pext_u64(occupancy, rMsk[square])] & pieces_[WR + offset];
+  mask |= t.bishop[square][_pext_u64(occupancy, bMsk[square])] & pieces_[WQ + offset];
+  mask |= t.rook[square][_pext_u64(occupancy, rMsk[square])] & pieces_[WQ + offset];
   mask |= nMsk[square] & pieces_[WN + offset];
   mask |= kMsk[square] & pieces_[WK + offset];
   if constexpr (C == WHITE) {
@@ -490,8 +490,8 @@ template MoveList Board::getMoves<WHITE>() const;
 template MoveList Board::getMoves<BLACK>() const;
 template MoveList Board::getNoQuietMoves<WHITE>() const;
 template MoveList Board::getNoQuietMoves<BLACK>() const;
-template u64 Board::getAttackers<WHITE>(u8 square) const;
-template u64 Board::getAttackers<BLACK>(u8 square) const;
+template u64 Board::getAttackers<WHITE>(u8 square, u64 occupancy) const;
+template u64 Board::getAttackers<BLACK>(u8 square, u64 occupancy) const;
 template void Board::makeMove<WHITE>(u16);
 template void Board::makeMove<BLACK>(u16);
 template void Board::unmakeMove<WHITE>();

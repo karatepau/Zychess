@@ -3,28 +3,43 @@
 #include "uci.h"
 
 template<Color C>
+i32 see(const Board& board, u8 destination, u64 occupancy, i32 victimValue) {
+  constexpr Color enemy = C ^ 1;
+  constexpr u8 offset = C * 6;
+  i32 alpha = 0;
+  u64 attackers = board.getAttackers<C>(destination, occupancy) & occupancy;
+  for (i32 pieceType = 0; pieceType < 6; pieceType++) {
+    u64 candidates = attackers & board.pieces_[pieceType + offset];
+    while (candidates) {
+      const u8 origin = __builtin_ctzll(candidates);
+      const u64 oriMask = 1ULL << origin;
+      const i32 score = victimValue - see<enemy>(board, destination, occupancy^oriMask, piecesValue[pieceType]);
+      if (score > alpha) alpha = score;
+      POPLSB(candidates);
+    }
+  }
+  return alpha;
+}
+
+template<Color C>
 std::array<i32, 218> valueMoves(const Board& board, const MoveList& moves) {
   std::array<i32, 218> scores;
   for (i32 i = 0; i < moves.count; i++) {
-      u8 origin = (moves.data[i] >> 6) & 0x3f;
-      u8 destination = moves.data[i] & 0x3f;
-      u8 flag = moves.data[i] >> 12;
-      i32 oriPiece;
-      i32 destPiece;
-      if constexpr (C == WHITE) {
-        oriPiece = board.squares_[origin] + 1;
-        destPiece = (board.squares_[destination] == -1) ? 0 : board.squares_[destination] - 5;
-      }
-      else {
-        oriPiece = board.squares_[origin] - 5;
-        destPiece = board.squares_[destination] + 1;
-      }
-      if (flag==9) {
-        scores[i] = 60;
-      }
-      else {
-        scores[i] = MVV_LVA[destPiece][oriPiece];
-      }
+    u8 origin = (moves.data[i] >> 6) & 0x3f;
+    u8 destination = moves.data[i] & 0x3f;
+    u8 flag = moves.data[i] >> 12;
+    i8 capturedPiece = board.squares_[destination];
+    i8 piece = board.squares_[origin];
+    u64 occupancy = board.occupancies_[BOTH] ^ (1ULL << origin);
+    if (flag==9) {
+      scores[i] = 60;
+    }
+    else if (capturedPiece == -1) {
+      scores[i] = 0;
+    }
+    else {
+      scores[i] = piecesValue[capturedPiece] - see<C^1>(board, destination, occupancy, piecesValue[piece]);
+    }
   }
   return scores;
 }
@@ -104,7 +119,7 @@ void storeBoardZobristHash(const u64& hash, const i32& depth, const i32& score, 
 
 bool isRepetition(const Board& board) {
   const u64 hash = board.extras_[board.turn_].zobristHash;
-  for (i32 i = static_cast<i32>(board.extras_[board.turn_].fiftyMovesRule) - 2; i >= 0; i -= 2) {
+  for (i32 i = board.turn_ - 2; i >= static_cast<i32>(board.extras_[board.turn_].fiftyMovesRule); i -= 2) {
     if (board.extras_[i].zobristHash == hash) return true;
   }
   return false;

@@ -95,20 +95,20 @@ struct Board {
   u16 turn_;
   std::array<Extras, 2048> extras_;
   template<Color C>
-  u64 getAttackers(u8 square) const;
+  u64 getAttackers(u8 square, u64 occupancy) const;
+  template<Color C>
+  u64 getAttackers(u8 square) const {
+    return getAttackers<C>(square, occupancies_[BOTH]);
+  }
   template<Color C>
   MoveList getMoves() const;
   template<Color C>
   MoveList getNoQuietMoves() const;
   template<Color C>
-  u64 isCheck() const;
-  template<Color C>
   void makeMove(u16 movement);
   template<Color C>
   void unmakeMove();
   void fenLoader(const std::vector<std::string>& fen);
-  template<Color C>
-  u64 getAttacks() const;
   template<Color C>
   void updateBoard(u8 piece, u8 destination, u64 oriMask, u64 destMask, u8 passantSq, u8 castlingRights);
   template<Color C>

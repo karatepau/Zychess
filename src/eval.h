@@ -1,6 +1,8 @@
 #pragma once
 #include "bitboard.h"
 
+inline constexpr std::array<i32, 12> piecesValue = {100, 320, 330, 500, 900, 0, 100, 320, 330, 500, 900, 0};
+
 constexpr std::array<i32, 64> addValue(std::array<i32, 64> table, i32 value) {
   for (i32& x : table) x += value;
   return table;
